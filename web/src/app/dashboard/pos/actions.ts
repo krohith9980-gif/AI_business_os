@@ -16,6 +16,7 @@ export async function completeSale(payload: {
     method: 'CASH' | 'UPI' | 'CARD' | 'SPLIT' | 'CREDIT'
     amount: number
   }[]
+  dueDate?: string | null
 }) {
   const supabase = await createClient()
 
@@ -85,7 +86,8 @@ export async function completeSale(payload: {
       p_store_id: payload.storeId,
       p_customer_id: payload.customerId || null,
       p_items: payload.items,
-      p_payments: payload.payments
+      p_payments: payload.payments,
+      p_due_date: payload.dueDate || null
     })
 
     if (rpcError) {

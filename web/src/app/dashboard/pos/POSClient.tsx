@@ -5,7 +5,7 @@ import { completeSale, createCustomerFromPOS } from './actions'
 import { formatCurrency } from '@/utils/currency'
 
 type Store = { id: string; name: string }
-type Customer = { id: string; name: string; phone_number: string | null; email: string | null; village: string | null }
+type Customer = { id: string; name: string; phone_number: string | null; email: string | null; village: string | null; outstanding_balance: number; credit_limit: number | null }
 type Variant = { 
   id: string
   productName: string
@@ -61,6 +61,8 @@ export default function POSClient({
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
   const [splitPayments, setSplitPayments] = useState<{method: 'CASH' | 'UPI' | 'CARD', amount: number}[]>([])
+  const [dueDateType, setDueDateType] = useState<'TODAY' | '7_DAYS' | '15_DAYS' | '30_DAYS' | 'CUSTOM'>('7_DAYS')
+  const [customDueDate, setCustomDueDate] = useState<string>('')
   
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -100,8 +102,8 @@ export default function POSClient({
       if (res.error) {
         setError(res.error)
       } else if (res.customer) {
-        setLocalCustomers(prev => [...prev, res.customer])
-        setSelectedCustomerId(res.customer.id)
+        setLocalCustomers(prev => [...prev, { ...res.customer!, outstanding_balance: 0, credit_limit: null }])
+        setSelectedCustomerId(res.customer!.id)
         setStep('BILLING')
       }
     })
@@ -242,6 +244,25 @@ export default function POSClient({
     }
 
     startTransition(async () => {
+      let finalDueDate: string | null = null
+      if (paymentMethod === 'CREDIT' || paymentMethod === 'SPLIT') {
+        const today = new Date()
+        if (dueDateType === 'TODAY') {
+          finalDueDate = today.toISOString()
+        } else if (dueDateType === '7_DAYS') {
+          today.setDate(today.getDate() + 7)
+          finalDueDate = today.toISOString()
+        } else if (dueDateType === '15_DAYS') {
+          today.setDate(today.getDate() + 15)
+          finalDueDate = today.toISOString()
+        } else if (dueDateType === '30_DAYS') {
+          today.setDate(today.getDate() + 30)
+          finalDueDate = today.toISOString()
+        } else if (dueDateType === 'CUSTOM' && customDueDate) {
+          finalDueDate = new Date(customDueDate).toISOString()
+        }
+      }
+
       const payload = {
         storeId: selectedStoreId,
         customerId: selectedCustomerId || null,
@@ -251,7 +272,8 @@ export default function POSClient({
           sale_unit: c.saleUnit,
           discount_amount: c.discountAmount
         })),
-        payments: finalPayments
+        payments: finalPayments,
+        dueDate: finalDueDate
       }
       
       const res = await completeSale(payload)
@@ -586,16 +608,73 @@ export default function POSClient({
                 </div>
 
                 {paymentMethod === 'CREDIT' && (
-                  <div className="mt-4 p-4 bg-yellow-50 rounded-md border border-yellow-200">
-                    <p className="text-sm text-yellow-800 font-medium mb-1">Credit Sale Details</p>
-                    {selectedCustomerId ? (
-                      <p className="text-sm text-yellow-700">
-                        The amount of {formatCurrency(totals.grandTotal)} will be added to the outstanding balance of the selected customer.
-                      </p>
-                    ) : (
-                      <p className="text-sm font-bold text-red-600">
-                        Please select a customer before confirming a credit sale.
-                      </p>
+                  <div className="mt-4 p-4 bg-yellow-50 rounded-md border border-yellow-200 space-y-4">
+                    <div>
+                      <p className="text-sm text-yellow-800 font-medium mb-1">Credit Sale Details</p>
+                      {selectedCustomerId ? (() => {
+                        const cust = customers.find(c => c.id === selectedCustomerId)
+                        if (!cust) return <p className="text-sm font-bold text-red-600">Customer not found.</p>
+                        
+                        const newBalance = cust.outstanding_balance + totals.grandTotal
+                        const limitExceeded = cust.credit_limit !== null && newBalance > cust.credit_limit
+                        
+                        return (
+                          <div className="space-y-2 text-sm text-yellow-900 mt-2">
+                            <div className="flex justify-between">
+                              <span>Current Outstanding:</span>
+                              <span className="font-medium">{formatCurrency(cust.outstanding_balance)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>New Sale Amount:</span>
+                              <span className="font-medium">+{formatCurrency(totals.grandTotal)}</span>
+                            </div>
+                            <div className="flex justify-between border-t border-yellow-300 pt-1">
+                              <span>New Outstanding:</span>
+                              <span className="font-bold">{formatCurrency(newBalance)}</span>
+                            </div>
+                            {cust.credit_limit !== null && (
+                              <div className="flex justify-between pt-1">
+                                <span>Credit Limit:</span>
+                                <span>{formatCurrency(cust.credit_limit)}</span>
+                              </div>
+                            )}
+                            {limitExceeded && (
+                              <div className="mt-2 p-2 bg-red-100 border border-red-300 text-red-700 font-bold rounded text-center">
+                                Exceeds Credit Limit by {formatCurrency(newBalance - (cust.credit_limit || 0))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })() : (
+                        <p className="text-sm font-bold text-red-600">
+                          Please select a customer before confirming a credit sale.
+                        </p>
+                      )}
+                    </div>
+                    
+                    {selectedCustomerId && (
+                      <div className="border-t border-yellow-300 pt-3">
+                        <label className="block text-sm font-medium text-yellow-900 mb-2">Due Date</label>
+                        <select
+                          value={dueDateType}
+                          onChange={(e) => setDueDateType(e.target.value as 'TODAY' | '7_DAYS' | '15_DAYS' | '30_DAYS' | 'CUSTOM')}
+                          className="block w-full rounded-md border-yellow-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm mb-2"
+                        >
+                          <option value="TODAY">Today</option>
+                          <option value="7_DAYS">7 Days</option>
+                          <option value="15_DAYS">15 Days</option>
+                          <option value="30_DAYS">30 Days</option>
+                          <option value="CUSTOM">Custom Date</option>
+                        </select>
+                        {dueDateType === 'CUSTOM' && (
+                          <input
+                            type="date"
+                            value={customDueDate}
+                            onChange={(e) => setCustomDueDate(e.target.value)}
+                            className="block w-full rounded-md border-yellow-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

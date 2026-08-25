@@ -19,6 +19,7 @@ type Customer = {
   village: string | null
   outstanding_balance: number
   phone_number: string | null
+  credit_limit: number | null
 }
 
 type Store = {
@@ -29,11 +30,21 @@ type Store = {
 export default function CustomerLedgerClient({
   customer,
   ledger,
-  stores
+  stores,
+  totalPurchases,
+  totalPayments,
+  agingBuckets,
+  overdueAmount,
+  nextDueDate
 }: {
   customer: Customer
   ledger: LedgerTransaction[]
   stores: Store[]
+  totalPurchases: number
+  totalPayments: number
+  agingBuckets: { '0_30': number, '31_60': number, '61_90': number, '90_plus': number }
+  overdueAmount: number
+  nextDueDate: string | null
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -44,6 +55,14 @@ export default function CustomerLedgerClient({
     setError(null)
     const formData = new FormData(e.currentTarget)
     formData.append('customer_id', customer.id)
+    
+    // Prevent overpayment on frontend
+    const amountStr = formData.get('amount') as string
+    const amount = parseFloat(amountStr)
+    if (amount > customer.outstanding_balance) {
+      setError(`Payment amount (${formatCurrency(amount)}) cannot exceed current outstanding balance (${formatCurrency(customer.outstanding_balance)})`)
+      return
+    }
     
     startTransition(async () => {
       const result = await recordCustomerPayment(formData)
@@ -78,32 +97,97 @@ export default function CustomerLedgerClient({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {overdueAmount > 0 && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-md">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Payment Overdue</h3>
+              <p className="text-sm text-red-700 mt-1">This customer has {formatCurrency(overdueAmount)} in overdue payments.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
           <div className="px-4 py-5 sm:p-6">
             <dt className="text-sm font-medium text-gray-500 truncate">Current Outstanding</dt>
             <dd className={`text-3xl font-bold ${customer.outstanding_balance > 0 ? 'text-red-600' : 'text-gray-900'}`}>
               {formatCurrency(customer.outstanding_balance)}
             </dd>
+            {nextDueDate && customer.outstanding_balance > 0 && (
+              <p className="mt-2 text-xs text-gray-500">
+                Next due: <span className="font-medium text-gray-700">{new Date(nextDueDate).toLocaleDateString()}</span>
+              </p>
+            )}
           </div>
         </div>
+        
         <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
           <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Total Purchases (MOCK)</dt>
+            <dt className="text-sm font-medium text-gray-500 truncate">Total Purchases</dt>
             <dd className="mt-1 text-3xl font-semibold text-gray-900">
-              ₹0.00
+              {formatCurrency(totalPurchases)}
             </dd>
           </div>
         </div>
+
         <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
           <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Total Payments (MOCK)</dt>
+            <dt className="text-sm font-medium text-gray-500 truncate">Total Payments</dt>
             <dd className="mt-1 text-3xl font-semibold text-gray-900">
-              ₹0.00
+              {formatCurrency(totalPayments)}
             </dd>
+          </div>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+          <div className="px-4 py-5 sm:p-6">
+            <dt className="text-sm font-medium text-gray-500 truncate">Credit Limit</dt>
+            <dd className="mt-1 text-3xl font-semibold text-gray-900">
+              {customer.credit_limit !== null ? formatCurrency(customer.credit_limit) : 'Unlimited'}
+            </dd>
+            {customer.credit_limit !== null && (
+              <p className="mt-2 text-xs text-gray-500">
+                Available: <span className="font-medium text-gray-700">{formatCurrency(Math.max(0, customer.credit_limit - customer.outstanding_balance))}</span>
+              </p>
+            )}
           </div>
         </div>
       </div>
+
+      {customer.outstanding_balance > 0 && (
+        <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
+          <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
+            <h3 className="text-lg leading-6 font-medium text-gray-900">Outstanding Aging</h3>
+            <p className="text-sm text-gray-500 mt-1">Breakdown of unpaid sales by days overdue</p>
+          </div>
+          <div className="grid grid-cols-4 divide-x divide-gray-200 text-center">
+            <div className="p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">1-30 Days</p>
+              <p className={`text-lg font-semibold ${agingBuckets['0_30'] > 0 ? 'text-yellow-600' : 'text-gray-900'}`}>{formatCurrency(agingBuckets['0_30'])}</p>
+            </div>
+            <div className="p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">31-60 Days</p>
+              <p className={`text-lg font-semibold ${agingBuckets['31_60'] > 0 ? 'text-orange-500' : 'text-gray-900'}`}>{formatCurrency(agingBuckets['31_60'])}</p>
+            </div>
+            <div className="p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">61-90 Days</p>
+              <p className={`text-lg font-semibold ${agingBuckets['61_90'] > 0 ? 'text-red-500' : 'text-gray-900'}`}>{formatCurrency(agingBuckets['61_90'])}</p>
+            </div>
+            <div className="p-4 bg-red-50">
+              <p className="text-xs font-medium text-red-500 uppercase tracking-wider mb-1">90+ Days</p>
+              <p className={`text-lg font-bold ${agingBuckets['90_plus'] > 0 ? 'text-red-700' : 'text-gray-900'}`}>{formatCurrency(agingBuckets['90_plus'])}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
         <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
