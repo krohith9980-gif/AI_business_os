@@ -22,6 +22,7 @@ export default async function POSPage() {
     .select('organization_id, role')
     .eq('profile_id', user.id)
     .eq('is_active', true)
+    .order('created_at', { ascending: true })
     .limit(1)
 
   if (!memberships || memberships.length === 0) {
@@ -71,22 +72,36 @@ export default async function POSPage() {
     .from('product_variants')
     .select(`
       id,
-      name,
       sku,
+      barcode,
       selling_price,
+      unit_of_measure,
+      packaging_type,
+      units_per_pack,
       product_id,
-      products (name)
+      product:product_id!inner (name)
     `)
     .eq('organization_id', organization_id)
     .eq('is_active', true)
     
+  // 4. Fetch Inventory
+  const storeIdsToFetch = stores.map(s => s.id)
+  const { data: inventoryData } = await supabase
+    .from('vw_inventory_available')
+    .select('store_id, variant_id, available_stock')
+    .in('store_id', storeIdsToFetch)
+    
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const variants = (variantsRaw || []).map((v: any) => ({
     id: v.id,
-    productName: Array.isArray(v.products) ? v.products[0]?.name : (v.products?.name || ''),
-    variantName: v.name || '',
+    productName: v.product?.name || '',
+    variantName: '', // product_variants doesn't have a name column, use product name
     sku: v.sku,
-    selling_price: v.selling_price
+    barcode: v.barcode,
+    selling_price: v.selling_price,
+    unit_of_measure: v.unit_of_measure,
+    packaging_type: v.packaging_type,
+    units_per_pack: v.units_per_pack
   }))
 
   return (
@@ -94,6 +109,7 @@ export default async function POSPage() {
       stores={stores} 
       customers={customers || []} 
       variants={variants}
+      inventory={inventoryData || []}
     />
   )
 }

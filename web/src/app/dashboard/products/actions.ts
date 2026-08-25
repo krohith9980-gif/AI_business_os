@@ -18,6 +18,7 @@ export async function addProduct(formData: FormData) {
       .select('organization_id, role')
       .eq('profile_id', user.id)
       .eq('is_active', true)
+      .order('created_at', { ascending: true })
       .limit(1)
 
     if (memError) {
@@ -48,6 +49,14 @@ export async function addProduct(formData: FormData) {
     const category_id = categoryIdStr && categoryIdStr !== '' ? categoryIdStr : null
     const imageUrl = formData.get('image_url')?.toString() || null
     const barcode = formData.get('barcode')?.toString() || null
+    
+    // Packaging & Stock fields
+    const unitOfMeasure = formData.get('unit_of_measure')?.toString() || 'PCS'
+    const packagingType = formData.get('packaging_type')?.toString() || 'NONE'
+    const unitsPerPack = parseInt(formData.get('units_per_pack')?.toString() || '1', 10)
+    
+    const openingStockInput = parseFloat(formData.get('opening_stock')?.toString() || '0')
+    const selectedStoreId = formData.get('store_id')?.toString() || null
     
     // Attributes JSON
     let attributes = null
@@ -86,7 +95,10 @@ export async function addProduct(formData: FormData) {
         p_attributes: attributes,
         p_tracking_mode: trackingMode,
         p_variant_image_url: null, // Assuming same image for MVP
-        p_is_active: true
+        p_is_active: true,
+        p_unit_of_measure: unitOfMeasure,
+        p_packaging_type: packagingType,
+        p_units_per_pack: unitsPerPack
     })
 
     if (rpcError) {
@@ -94,7 +106,30 @@ export async function addProduct(formData: FormData) {
       return { error: rpcError.message || 'Failed to create product. Check SKU/Barcode uniqueness.' }
     }
 
+    // 3. Initialize inventory for the selected store if opening stock is provided
+    if (selectedStoreId && openingStockInput > 0 && data?.variant_id) {
+      const baseQuantity = Math.floor(openingStockInput * (packagingType !== 'NONE' ? unitsPerPack : 1))
+      
+      if (baseQuantity > 0) {
+        const { error: invError } = await supabase.rpc('record_inventory_movement', {
+          p_store_id: selectedStoreId,
+          p_variant_id: data.variant_id,
+          p_movement_type: 'opening_stock',
+          p_quantity: baseQuantity,
+          p_reference_id: null,
+          p_notes: 'Initial opening stock',
+          p_disposition: 'RESELLABLE'
+        })
+        
+        if (invError) {
+          console.error('Error initializing inventory:', invError)
+          return { error: `Product created, but inventory failed: ${invError.message}` }
+        }
+      }
+    }
+
     revalidatePath('/dashboard/products')
+    revalidatePath('/dashboard/pos')
     return { success: true, data }
   } catch (err: unknown) {
     console.error('Action Exception:', err)

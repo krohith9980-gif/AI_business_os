@@ -8,7 +8,8 @@ export async function completeSale(payload: {
   customerId: string | null
   items: {
     variant_id: string
-    quantity: number
+    display_quantity: number
+    sale_unit: string
     discount_amount: number
   }[]
   payments: {
@@ -43,6 +44,7 @@ export async function completeSale(payload: {
       .select('organization_id, role')
       .eq('profile_id', user.id)
       .eq('is_active', true)
+      .order('created_at', { ascending: true })
       .limit(1)
 
     if (memError || !memberships || memberships.length === 0) {

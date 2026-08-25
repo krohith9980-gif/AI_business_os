@@ -5,16 +5,35 @@ import { completeSale } from './actions'
 
 type Store = { id: string; name: string }
 type Customer = { id: string; name: string; phone_number: string | null; email: string | null }
-type Variant = { id: string; productName: string; variantName: string; sku: string; selling_price: number }
+type Variant = { 
+  id: string
+  productName: string
+  variantName: string
+  sku: string
+  selling_price: number
+  unit_of_measure: string
+  packaging_type: string
+  units_per_pack: number
+}
+
+type Inventory = {
+  store_id: string
+  variant_id: string
+  available_stock: number
+}
 
 type CartItem = {
   variantId: string
   productName: string
   variantName: string
   sku: string
-  quantity: number
+  displayQuantity: number
+  saleUnit: string
   unitPrice: number
   discountAmount: number // flat amount per line item
+  packagingType: string
+  unitsPerPack: number
+  baseUnit: string
 }
 
 type PaymentMethod = 'CASH' | 'UPI' | 'CARD' | 'SPLIT'
@@ -22,11 +41,13 @@ type PaymentMethod = 'CASH' | 'UPI' | 'CARD' | 'SPLIT'
 export default function POSClient({
   stores,
   customers,
-  variants
+  variants,
+  inventory
 }: {
   stores: Store[]
   customers: Customer[]
   variants: Variant[]
+  inventory: Inventory[]
 }) {
   const [selectedStoreId, setSelectedStoreId] = useState<string>(stores[0]?.id || '')
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('')
@@ -51,7 +72,8 @@ export default function POSClient({
     let grandTotal = 0
 
     cart.forEach(item => {
-      const lineSub = item.unitPrice * item.quantity
+      const multiplier = (item.saleUnit === item.packagingType && item.packagingType !== 'NONE') ? item.unitsPerPack : 1;
+      const lineSub = (item.unitPrice * multiplier) * item.displayQuantity;
       const lineDiscount = item.discountAmount 
       
       const lineTotal = lineSub - lineDiscount
@@ -78,14 +100,14 @@ export default function POSClient({
     )
   }, [productSearch, variants])
 
-  const addToCart = (variant: Variant) => {
+  const addToCart = (variant: Variant, saleUnit: string) => {
     setSuccessSaleId(null)
     setCart(prev => {
-      const existing = prev.find(item => item.variantId === variant.id)
+      const existing = prev.find(item => item.variantId === variant.id && item.saleUnit === saleUnit)
       if (existing) {
         return prev.map(item => 
-          item.variantId === variant.id 
-            ? { ...item, quantity: item.quantity + 1 } 
+          item.variantId === variant.id && item.saleUnit === saleUnit
+            ? { ...item, displayQuantity: item.displayQuantity + 1 } 
             : item
         )
       }
@@ -94,35 +116,39 @@ export default function POSClient({
         productName: variant.productName,
         variantName: variant.variantName,
         sku: variant.sku,
-        quantity: 1,
+        displayQuantity: 1,
+        saleUnit: saleUnit,
         unitPrice: variant.selling_price,
-        discountAmount: 0
+        discountAmount: 0,
+        packagingType: variant.packaging_type,
+        unitsPerPack: variant.units_per_pack,
+        baseUnit: variant.unit_of_measure
       }]
     })
   }
 
-  const updateQuantity = (variantId: string, delta: number) => {
+  const updateQuantity = (variantId: string, saleUnit: string, delta: number) => {
     setCart(prev => prev.map(item => {
-      if (item.variantId === variantId) {
-        const newQ = Math.max(1, item.quantity + delta)
-        return { ...item, quantity: newQ }
+      if (item.variantId === variantId && item.saleUnit === saleUnit) {
+        const newQ = Math.max(1, item.displayQuantity + delta)
+        return { ...item, displayQuantity: newQ }
       }
       return item
     }))
   }
   
-  const updateDiscount = (variantId: string, amount: string) => {
+  const updateDiscount = (variantId: string, saleUnit: string, amount: string) => {
     const val = parseFloat(amount) || 0
     setCart(prev => prev.map(item => {
-      if (item.variantId === variantId) {
+      if (item.variantId === variantId && item.saleUnit === saleUnit) {
         return { ...item, discountAmount: val }
       }
       return item
     }))
   }
 
-  const removeFromCart = (variantId: string) => {
-    setCart(prev => prev.filter(item => item.variantId !== variantId))
+  const removeFromCart = (variantId: string, saleUnit: string) => {
+    setCart(prev => prev.filter(item => !(item.variantId === variantId && item.saleUnit === saleUnit)))
   }
 
   const handleCheckoutOpen = () => {
@@ -173,7 +199,8 @@ export default function POSClient({
         customerId: selectedCustomerId || null,
         items: cart.map(c => ({
           variant_id: c.variantId,
-          quantity: c.quantity,
+          display_quantity: c.displayQuantity,
+          sale_unit: c.saleUnit,
           discount_amount: c.discountAmount
         })),
         payments: finalPayments
@@ -246,24 +273,46 @@ export default function POSClient({
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {filteredVariants.map(variant => (
-                  <button
+                {filteredVariants.map(variant => {
+                  const stock = inventory.find(i => i.variant_id === variant.id && i.store_id === selectedStoreId)?.available_stock || 0
+                  return (
+                  <div
                     key={variant.id}
-                    onClick={() => addToCart(variant)}
-                    className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:border-indigo-500 hover:ring-1 hover:ring-indigo-500 transition-all text-left"
+                    className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow-sm text-left"
                   >
-                    <span className="font-semibold text-gray-900 truncate w-full" title={variant.productName}>
-                      {variant.productName}
-                    </span>
+                    <div className="flex justify-between items-start w-full">
+                      <span className="font-semibold text-gray-900 truncate w-full" title={variant.productName}>
+                        {variant.productName}
+                      </span>
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ml-2 ${stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {stock} {variant.unit_of_measure}
+                      </span>
+                    </div>
                     <span className="text-sm text-gray-500 truncate w-full" title={variant.variantName}>
                       {variant.variantName}
                     </span>
-                    <div className="mt-2 flex justify-between items-center w-full">
+                    <div className="mt-3 flex flex-col gap-2 w-full">
                       <span className="text-xs text-gray-400">{variant.sku}</span>
-                      <span className="font-medium text-indigo-600">${Number(variant.selling_price).toFixed(2)}</span>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        <button 
+                          onClick={() => addToCart(variant, variant.unit_of_measure)}
+                          className="px-2 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                        >
+                          + {variant.unit_of_measure} (${variant.selling_price.toFixed(2)})
+                        </button>
+                        {variant.packaging_type !== 'NONE' && (
+                          <button 
+                            onClick={() => addToCart(variant, variant.packaging_type)}
+                            className="px-2 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                          >
+                            + {variant.packaging_type} (${(variant.selling_price * variant.units_per_pack).toFixed(2)})
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </button>
-                ))}
+                  </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -283,15 +332,15 @@ export default function POSClient({
             ) : (
               <ul className="divide-y divide-gray-200">
                 {cart.map(item => (
-                  <li key={item.variantId} className="p-4 hover:bg-gray-50">
+                  <li key={`${item.variantId}-${item.saleUnit}`} className="p-4 hover:bg-gray-50">
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex-1 min-w-0 pr-4">
                         <p className="text-sm font-medium text-gray-900 truncate">{item.productName}</p>
-                        <p className="text-xs text-gray-500 truncate">{item.variantName}</p>
+                        <p className="text-xs text-gray-500 truncate">{item.saleUnit} {item.saleUnit === item.packagingType && item.packagingType !== 'NONE' ? `(${item.unitsPerPack} ${item.baseUnit})` : ''}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium text-gray-900">
-                          ${((item.unitPrice * item.quantity) - item.discountAmount).toFixed(2)}
+                          ${(((item.saleUnit === item.packagingType && item.packagingType !== 'NONE' ? item.unitsPerPack : 1) * item.unitPrice * item.displayQuantity) - item.discountAmount).toFixed(2)}
                         </p>
                       </div>
                     </div>
@@ -299,14 +348,14 @@ export default function POSClient({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center border border-gray-300 rounded-md">
                         <button 
-                          onClick={() => updateQuantity(item.variantId, -1)}
+                          onClick={() => updateQuantity(item.variantId, item.saleUnit, -1)}
                           className="px-2 py-1 text-gray-600 hover:bg-gray-100 rounded-l-md"
                         >-</button>
                         <span className="px-2 py-1 text-sm text-gray-900 min-w-[2rem] text-center">
-                          {item.quantity}
+                          {item.displayQuantity}
                         </span>
                         <button 
-                          onClick={() => updateQuantity(item.variantId, 1)}
+                          onClick={() => updateQuantity(item.variantId, item.saleUnit, 1)}
                           className="px-2 py-1 text-gray-600 hover:bg-gray-100 rounded-r-md"
                         >+</button>
                       </div>
@@ -319,12 +368,12 @@ export default function POSClient({
                             min="0"
                             step="0.01"
                             value={item.discountAmount || ''}
-                            onChange={(e) => updateDiscount(item.variantId, e.target.value)}
+                            onChange={(e) => updateDiscount(item.variantId, item.saleUnit, e.target.value)}
                             className="w-16 p-1 text-xs border border-gray-300 rounded focus:border-indigo-500 focus:ring-indigo-500 text-gray-900"
                           />
                         </div>
                         <button 
-                          onClick={() => removeFromCart(item.variantId)}
+                          onClick={() => removeFromCart(item.variantId, item.saleUnit)}
                           className="text-red-500 hover:text-red-700 p-1"
                           title="Remove item"
                         >

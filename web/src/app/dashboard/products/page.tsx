@@ -28,12 +28,36 @@ export default async function ProductsPage({
   // 2. Determine active org
   const { data: memberships } = await supabase
     .from('organization_members')
-    .select('organization_id')
+    .select('organization_id, role')
     .eq('profile_id', user.id)
     .eq('is_active', true)
+    .order('created_at', { ascending: true })
     .limit(1)
 
   const activeOrgId = memberships?.[0]?.organization_id
+  const role = memberships?.[0]?.role
+  
+  // 3. Fetch stores
+  let storesQuery = supabase
+    .from('stores')
+    .select('id, name')
+    .eq('organization_id', activeOrgId)
+    .eq('is_active', true)
+
+  if (role !== 'OWNER' && role !== 'MANAGER') {
+    const { data: userStores } = await supabase
+      .from('user_stores')
+      .select('store_id')
+      .eq('profile_id', user.id)
+    const storeIds = userStores?.map(us => us.store_id) || []
+    if (storeIds.length > 0) {
+      storesQuery = storesQuery.in('id', storeIds)
+    } else {
+      storesQuery = storesQuery.in('id', ['00000000-0000-0000-0000-000000000000']) 
+    }
+  }
+
+  const { data: stores } = await storesQuery
 
   // 3. Fetch categories for modal
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,6 +87,9 @@ export default async function ProductsPage({
         selling_price,
         tracking_mode,
         is_active,
+        unit_of_measure,
+        packaging_type,
+        units_per_pack,
         product:product_id!inner (
           id,
           name,
@@ -95,15 +122,33 @@ export default async function ProductsPage({
             purchase_cost: v.purchase_cost,
             selling_price: v.selling_price,
             tracking_mode: v.tracking_mode,
-            is_active: v.is_active
+            is_active: v.is_active,
+            unit_of_measure: v.unit_of_measure,
+            packaging_type: v.packaging_type,
+            units_per_pack: v.units_per_pack
         }))
     }
+  }
+
+  // Fetch inventory for the stores
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let inventory: any[] = []
+  if (stores && stores.length > 0) {
+    const storeIds = stores.map(s => s.id)
+    const { data: invData } = await supabase
+      .from('vw_inventory_available')
+      .select('store_id, variant_id, available_stock')
+      .in('store_id', storeIds)
+      
+    if (invData) inventory = invData
   }
 
   return (
     <ProductsClient 
       initialProducts={products} 
       categories={categories}
+      stores={stores || []}
+      inventory={inventory}
       searchQuery={query}
     />
   )
