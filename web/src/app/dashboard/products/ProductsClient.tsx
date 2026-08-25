@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from 'react'
 import { addProduct } from './actions'
+import { formatCurrency } from '@/utils/currency'
 import { useRouter } from 'next/navigation'
 
 type Product = {
@@ -158,8 +159,8 @@ export default function ProductsClient({
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.sku}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.category_name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.purchase_cost.toFixed(2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.selling_price.toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(p.purchase_cost)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(p.selling_price)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.unit_of_measure}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.packaging_type}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.units_per_pack}</td>

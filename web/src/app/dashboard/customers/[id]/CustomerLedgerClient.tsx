@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from 'react'
 import { recordCustomerPayment } from './actions'
+import { formatCurrency } from '@/utils/currency'
 
 type LedgerTransaction = {
   id: string
@@ -81,8 +82,8 @@ export default function CustomerLedgerClient({
         <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
           <div className="px-4 py-5 sm:p-6">
             <dt className="text-sm font-medium text-gray-500 truncate">Current Outstanding</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">
-              ₹{customer.outstanding_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            <dd className={`text-3xl font-bold ${customer.outstanding_balance > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+              {formatCurrency(customer.outstanding_balance)}
             </dd>
           </div>
         </div>
@@ -139,14 +140,14 @@ export default function CustomerLedgerClient({
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {tx.notes || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-red-600 font-medium">
-                      {tx.amount > 0 ? `₹${tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '-'}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-red-600">
+                      {tx.amount > 0 ? formatCurrency(tx.amount) : '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-green-600 font-medium">
-                      {tx.amount < 0 ? `₹${Math.abs(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '-'}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-green-600">
+                      {tx.amount < 0 ? formatCurrency(Math.abs(tx.amount)) : '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
-                      ₹{tx.balance_after.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                      {formatCurrency(tx.balance_after)}
                     </td>
                   </tr>
                 ))

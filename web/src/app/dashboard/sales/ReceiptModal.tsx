@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { formatCurrency } from '@/utils/currency'
 
 type ReceiptData = {
   id: string
@@ -177,11 +178,11 @@ export default function ReceiptModal({ saleId, onClose }: { saleId: string; onCl
                           <p className="text-xs text-gray-500">{item.product_variant?.name} {item.product_variant?.sku ? `(${item.product_variant.sku})` : ''}</p>
                         </td>
                         <td className="py-3 text-right">{item.quantity}</td>
-                        <td className="py-3 text-right">${Number(item.unit_selling_price).toFixed(2)}</td>
+                        <td className="py-3 text-right">{formatCurrency(item.unit_selling_price)}</td>
                         <td className="py-3 text-right text-green-600">
-                          {item.discount_amount > 0 ? `-$${Number(item.discount_amount).toFixed(2)}` : '-'}
+                          {item.discount_amount > 0 ? `-${formatCurrency(item.discount_amount)}` : '-'}
                         </td>
-                        <td className="py-3 text-right font-medium">${Number(item.total_price).toFixed(2)}</td>
+                        <td className="py-3 text-right font-medium">{formatCurrency(item.total_price)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -189,24 +190,23 @@ export default function ReceiptModal({ saleId, onClose }: { saleId: string; onCl
               </div>
 
               <div className="border-t border-gray-200 pt-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Subtotal</span>
-                  <span>${Number(data.subtotal).toFixed(2)}</span>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(data.subtotal)}</span>
                 </div>
                 {data.discount_total > 0 && (
                   <div className="flex justify-between text-sm text-green-600">
                     <span>Discount</span>
-                    <span>-${Number(data.discount_total).toFixed(2)}</span>
+                    <span>-{formatCurrency(data.discount_total)}</span>
                   </div>
                 )}
-                {/* Tax is zero in MVP, but we show it if non-zero, or show it explicitly as zero so users know it wasn't forgotten */}
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Tax</span>
-                  <span>${Number(data.tax_total).toFixed(2)}</span>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Tax</span>
+                  <span>{formatCurrency(data.tax_total)}</span>
                 </div>
-                <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">
-                  <span>Grand Total</span>
-                  <span>${Number(data.grand_total).toFixed(2)}</span>
+                <div className="flex justify-between text-base font-bold text-gray-900 border-t border-gray-200 pt-2">
+                  <span>Total</span>
+                  <span>{formatCurrency(data.grand_total)}</span>
                 </div>
               </div>
 

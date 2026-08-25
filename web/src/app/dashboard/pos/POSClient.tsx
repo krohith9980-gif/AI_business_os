@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition, useMemo } from 'react'
 import { completeSale } from './actions'
+import { formatCurrency } from '@/utils/currency'
 
 type Store = { id: string; name: string }
 type Customer = { id: string; name: string; phone_number: string | null; email: string | null }
@@ -36,7 +37,7 @@ type CartItem = {
   baseUnit: string
 }
 
-type PaymentMethod = 'CASH' | 'UPI' | 'CARD' | 'SPLIT'
+type PaymentMethod = 'CASH' | 'UPI' | 'CARD' | 'SPLIT' | 'CREDIT'
 
 export default function POSClient({
   stores,
@@ -59,7 +60,7 @@ export default function POSClient({
   // Payment state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
-  const [splitPayments, setSplitPayments] = useState<{method: PaymentMethod, amount: number}[]>([])
+  const [splitPayments, setSplitPayments] = useState<{method: 'CASH' | 'UPI' | 'CARD', amount: number}[]>([])
   
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -170,7 +171,7 @@ export default function POSClient({
     setSplitPayments(newSplit)
   }
 
-  const handleSplitMethodChange = (index: number, method: PaymentMethod) => {
+  const handleSplitMethodChange = (index: number, method: 'CASH' | 'UPI' | 'CARD') => {
     const newSplit = [...splitPayments]
     newSplit[index].method = method
     setSplitPayments(newSplit)
@@ -181,16 +182,22 @@ export default function POSClient({
     
     let finalPayments: { method: PaymentMethod, amount: number }[] = []
     
-    if (paymentMethod === 'SPLIT') {
+    if (paymentMethod === 'CREDIT') {
+      if (!selectedCustomerId) {
+        setError('Select a customer for credit sale.')
+        return
+      }
+      // Leave finalPayments empty to trigger outstanding balance calculation in the backend
+    } else if (paymentMethod === 'SPLIT') {
       finalPayments = splitPayments.filter(p => p.amount > 0)
       const splitTotal = finalPayments.reduce((sum, p) => sum + p.amount, 0)
       // Math.abs to avoid float issues
       if (Math.abs(splitTotal - totals.grandTotal) > 0.001) {
-        setError(`Split payments total ($${splitTotal.toFixed(2)}) must exactly equal grand total ($${totals.grandTotal.toFixed(2)})`)
+        setError(`Split payments total (${formatCurrency(splitTotal)}) must exactly equal grand total (${formatCurrency(totals.grandTotal)})`)
         return
       }
     } else {
-      finalPayments = [{ method: paymentMethod, amount: totals.grandTotal }]
+      finalPayments = [{ method: paymentMethod as 'CASH' | 'UPI' | 'CARD', amount: totals.grandTotal }]
     }
 
     startTransition(async () => {
@@ -298,14 +305,14 @@ export default function POSClient({
                           onClick={() => addToCart(variant, variant.unit_of_measure)}
                           className="px-2 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200 transition-colors"
                         >
-                          + {variant.unit_of_measure} (${variant.selling_price.toFixed(2)})
+                          <span className="font-medium">+ {variant.unit_of_measure} ({formatCurrency(variant.selling_price)})</span>
                         </button>
                         {variant.packaging_type !== 'NONE' && (
                           <button 
                             onClick={() => addToCart(variant, variant.packaging_type)}
                             className="px-2 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200 transition-colors"
                           >
-                            + {variant.packaging_type} (${(variant.selling_price * variant.units_per_pack).toFixed(2)})
+                            <span className="font-medium">+ {variant.packaging_type} ({formatCurrency(variant.selling_price * variant.units_per_pack)})</span>
                           </button>
                         )}
                       </div>
@@ -339,9 +346,9 @@ export default function POSClient({
                         <p className="text-xs text-gray-500 truncate">{item.saleUnit} {item.saleUnit === item.packagingType && item.packagingType !== 'NONE' ? `(${item.unitsPerPack} ${item.baseUnit})` : ''}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium text-gray-900">
-                          ${(((item.saleUnit === item.packagingType && item.packagingType !== 'NONE' ? item.unitsPerPack : 1) * item.unitPrice * item.displayQuantity) - item.discountAmount).toFixed(2)}
-                        </p>
+                        <span className="text-sm font-medium text-gray-900">
+                          {formatCurrency(((item.saleUnit === item.packagingType && item.packagingType !== 'NONE' ? item.unitsPerPack : 1) * item.unitPrice * item.displayQuantity) - item.discountAmount)}
+                        </span>
                       </div>
                     </div>
                     
@@ -362,7 +369,7 @@ export default function POSClient({
                       
                       <div className="flex items-center gap-2">
                         <div className="flex items-center">
-                          <span className="text-xs text-gray-500 mr-1">Disc: $</span>
+                          <span className="text-xs text-gray-500 mr-1">Disc: ₹</span>
                           <input 
                             type="number" 
                             min="0"
@@ -392,17 +399,17 @@ export default function POSClient({
           <div className="p-4 border-t border-gray-200 bg-gray-50 space-y-3">
             <div className="flex justify-between text-sm text-gray-600">
               <span>Subtotal</span>
-              <span>${totals.subtotal.toFixed(2)}</span>
+              <span>{formatCurrency(totals.subtotal)}</span>
             </div>
             {totals.discountTotal > 0 && (
               <div className="flex justify-between text-sm text-green-600">
                 <span>Discount</span>
-                <span>-${totals.discountTotal.toFixed(2)}</span>
+                <span>-{formatCurrency(totals.discountTotal)}</span>
               </div>
             )}
             <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t border-gray-200">
               <span>Grand Total</span>
-              <span>${totals.grandTotal.toFixed(2)}</span>
+              <span>{formatCurrency(totals.grandTotal)}</span>
             </div>
             
             <button
@@ -410,7 +417,7 @@ export default function POSClient({
               disabled={cart.length === 0}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors"
             >
-              Checkout (${totals.grandTotal.toFixed(2)})
+              Checkout ({formatCurrency(totals.grandTotal)})
             </button>
           </div>
         </div>
@@ -437,7 +444,7 @@ export default function POSClient({
             <div className="p-6">
               <div className="mb-6 text-center">
                 <p className="text-sm text-gray-500 mb-1">Amount Due</p>
-                <p className="text-3xl font-bold text-gray-900">${totals.grandTotal.toFixed(2)}</p>
+                <p className="text-3xl font-bold text-gray-900">{formatCurrency(totals.grandTotal)}</p>
               </div>
 
               {error && (
@@ -450,11 +457,11 @@ export default function POSClient({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['CASH', 'UPI', 'CARD', 'SPLIT'] as PaymentMethod[]).map(method => (
+                    {([...(['CASH', 'UPI', 'CARD', 'SPLIT'] as PaymentMethod[]), 'CREDIT']).map(method => (
                       <button
                         key={method}
                         type="button"
-                        onClick={() => setPaymentMethod(method)}
+                        onClick={() => setPaymentMethod(method as PaymentMethod | 'CREDIT')}
                         className={`px-4 py-2 border rounded-md text-sm font-medium ${
                           paymentMethod === method 
                             ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
@@ -467,6 +474,21 @@ export default function POSClient({
                   </div>
                 </div>
 
+                {paymentMethod === 'CREDIT' && (
+                  <div className="mt-4 p-4 bg-yellow-50 rounded-md border border-yellow-200">
+                    <p className="text-sm text-yellow-800 font-medium mb-1">Credit Sale Details</p>
+                    {selectedCustomerId ? (
+                      <p className="text-sm text-yellow-700">
+                        The amount of {formatCurrency(totals.grandTotal)} will be added to the outstanding balance of the selected customer.
+                      </p>
+                    ) : (
+                      <p className="text-sm font-bold text-red-600">
+                        Please select a customer before confirming a credit sale.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {paymentMethod === 'SPLIT' && (
                   <div className="mt-4 space-y-3 bg-gray-50 p-4 rounded-md border border-gray-200">
                     <p className="text-sm font-medium text-gray-700">Split Breakdown</p>
@@ -474,7 +496,7 @@ export default function POSClient({
                       <div key={idx} className="flex items-center gap-2">
                         <select 
                           value={split.method}
-                          onChange={(e) => handleSplitMethodChange(idx, e.target.value as PaymentMethod)}
+                          onChange={(e) => handleSplitMethodChange(idx, e.target.value as 'CASH' | 'UPI' | 'CARD')}
                           className="block w-1/2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                         >
                           <option value="CASH">CASH</option>
@@ -483,7 +505,7 @@ export default function POSClient({
                         </select>
                         <div className="relative flex-1">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <span className="text-gray-500 sm:text-sm">$</span>
+                            <span className="text-gray-500 sm:text-sm">₹</span>
                           </div>
                           <input
                             type="number"
@@ -503,7 +525,7 @@ export default function POSClient({
                           ? 'text-green-600' 
                           : 'text-red-600'
                       }`}>
-                        ${splitPayments.reduce((s, p) => s + p.amount, 0).toFixed(2)}
+                        {formatCurrency(splitPayments.reduce((s, p) => s + p.amount, 0))}
                       </span>
                     </div>
                   </div>

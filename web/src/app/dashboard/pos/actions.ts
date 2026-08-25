@@ -13,7 +13,7 @@ export async function completeSale(payload: {
     discount_amount: number
   }[]
   payments: {
-    method: 'CASH' | 'UPI' | 'CARD' | 'SPLIT'
+    method: 'CASH' | 'UPI' | 'CARD' | 'SPLIT' | 'CREDIT'
     amount: number
   }[]
 }) {
@@ -33,8 +33,8 @@ export async function completeSale(payload: {
     return { error: 'Cart is empty' }
   }
 
-  if (!payload.payments || payload.payments.length === 0) {
-    return { error: 'Payment is required' }
+  if ((!payload.payments || payload.payments.length === 0) && !payload.customerId) {
+    return { error: 'Payment is required for walk-in customers' }
   }
 
   try {

@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import ReceiptModal from './ReceiptModal'
+import { formatCurrency } from '@/utils/currency'
 
 type Sale = {
   id: string
@@ -260,8 +261,8 @@ export default function SalesClient({
                         {sale.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
-                      ${Number(sale.grand_total).toFixed(2)}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {formatCurrency(sale.grand_total)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button 
