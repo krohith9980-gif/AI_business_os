@@ -63,7 +63,7 @@ export default async function POSPage() {
   // 2. Fetch Customers for this org
   const { data: customers } = await supabase
     .from('customers')
-    .select('id, name, phone_number, email')
+    .select('id, name, phone_number, email, village')
     .eq('organization_id', organization_id)
     .eq('is_active', true)
 

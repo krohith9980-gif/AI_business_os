@@ -1,11 +1,11 @@
 'use client'
 
 import React, { useState, useTransition, useMemo } from 'react'
-import { completeSale } from './actions'
+import { completeSale, createCustomerFromPOS } from './actions'
 import { formatCurrency } from '@/utils/currency'
 
 type Store = { id: string; name: string }
-type Customer = { id: string; name: string; phone_number: string | null; email: string | null }
+type Customer = { id: string; name: string; phone_number: string | null; email: string | null; village: string | null }
 type Variant = { 
   id: string
   productName: string
@@ -65,6 +65,47 @@ export default function POSClient({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [successSaleId, setSuccessSaleId] = useState<string | null>(null)
+
+  // Customer Step State
+  const [step, setStep] = useState<'CUSTOMER' | 'BILLING'>('CUSTOMER')
+  const [custName, setCustName] = useState('')
+  const [custPhone, setCustPhone] = useState('')
+  const [custVillage, setCustVillage] = useState('')
+  const [creatingCustomer, setCreatingCustomer] = useState(false)
+  const [localCustomers, setLocalCustomers] = useState<Customer[]>(customers)
+
+  const matchedCustomer = useMemo(() => {
+    if (!custPhone.trim()) return null
+    return localCustomers.find(c => c.phone_number === custPhone.trim()) || null
+  }, [custPhone, localCustomers])
+
+  const handleUseExistingCustomer = () => {
+    if (matchedCustomer) {
+      setSelectedCustomerId(matchedCustomer.id)
+      setStep('BILLING')
+      setError(null)
+    }
+  }
+
+  const handleCreateAndContinue = () => {
+    if (!custName.trim() || !custPhone.trim() || !custVillage.trim()) {
+      setError('Name, Phone, and Village are required for a new customer.')
+      return
+    }
+    setError(null)
+    setCreatingCustomer(true)
+    startTransition(async () => {
+      const res = await createCustomerFromPOS(custName, custPhone, custVillage)
+      setCreatingCustomer(false)
+      if (res.error) {
+        setError(res.error)
+      } else if (res.customer) {
+        setLocalCustomers(prev => [...prev, res.customer])
+        setSelectedCustomerId(res.customer.id)
+        setStep('BILLING')
+      }
+    })
+  }
 
   // Computed totals matching backend RPC exactly
   const totals = useMemo(() => {
@@ -240,19 +281,89 @@ export default function POSClient({
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
-          
-          <select
-            value={selectedCustomerId}
-            onChange={(e) => setSelectedCustomerId(e.target.value)}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          >
-            <option value="">Walk-in Customer</option>
-            {customers.map(c => (
-              <option key={c.id} value={c.id}>{c.name} {c.phone_number ? `(${c.phone_number})` : ''}</option>
-            ))}
-          </select>
         </div>
       </div>
+
+      {step === 'CUSTOMER' ? (
+        <div className="bg-white p-6 shadow-sm rounded-lg border border-gray-200">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">Customer Details</h2>
+          {error && <div className="mb-4 text-sm text-red-600 bg-red-50 p-2 rounded-md">{error}</div>}
+          <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-2 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Customer Name *</label>
+              <input
+                type="text"
+                value={custName}
+                onChange={(e) => setCustName(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                placeholder="Ramesh Kumar"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Phone Number *</label>
+              <input
+                type="text"
+                value={custPhone}
+                onChange={(e) => setCustPhone(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                placeholder="9876543210"
+              />
+            </div>
+          </div>
+          
+          {matchedCustomer ? (
+            <div className="bg-green-50 p-4 rounded-md border border-green-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-green-800 mb-1">✓ Customer Found</p>
+                <p className="text-sm text-green-700 font-medium">{matchedCustomer.name}</p>
+                <p className="text-sm text-green-700">{matchedCustomer.phone_number}</p>
+                <p className="text-sm text-green-700">{matchedCustomer.village}</p>
+              </div>
+              <button 
+                onClick={handleUseExistingCustomer} 
+                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
+              >
+                Use Customer
+              </button>
+            </div>
+          ) : custPhone.trim() ? (
+            <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">New Customer</h3>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Village *</label>
+                <input
+                  type="text"
+                  value={custVillage}
+                  onChange={(e) => setCustVillage(e.target.value)}
+                  className="mt-1 block w-full sm:w-1/2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  placeholder="Miryala"
+                />
+              </div>
+              <button 
+                onClick={handleCreateAndContinue} 
+                disabled={creatingCustomer}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:bg-indigo-400"
+              >
+                {creatingCustomer ? 'Creating...' : 'Continue Billing'}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          <div className="bg-indigo-50 p-4 rounded-lg flex items-center justify-between border border-indigo-100">
+             <div>
+                <p className="text-xs text-indigo-500 font-bold uppercase tracking-wider mb-1">CUSTOMER</p>
+                <p className="text-sm font-medium text-indigo-900">{localCustomers.find(c => c.id === selectedCustomerId)?.name}</p>
+                <p className="text-sm text-indigo-700">{localCustomers.find(c => c.id === selectedCustomerId)?.phone_number} | {localCustomers.find(c => c.id === selectedCustomerId)?.village}</p>
+             </div>
+             <button 
+                onClick={() => setStep('CUSTOMER')} 
+                className="text-sm text-indigo-600 font-medium hover:text-indigo-800 bg-white px-3 py-1.5 rounded border border-indigo-200 shadow-sm"
+             >
+               Change Customer
+             </button>
+          </div>
 
       {successSaleId && (
         <div className="p-4 bg-green-50 border border-green-200 text-green-700 rounded-md shadow-sm">
@@ -544,6 +655,8 @@ export default function POSClient({
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   )

@@ -103,3 +103,61 @@ export async function completeSale(payload: {
     return { error: err instanceof Error ? err.message : 'An unexpected error occurred' }
   }
 }
+
+export async function createCustomerFromPOS(name: string, phone: string, village: string) {
+  const supabase = await createClient()
+  
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return { error: 'Authentication required' }
+  }
+
+  if (!name || name.trim() === '') {
+    return { error: 'Name is required' }
+  }
+  if (!phone || phone.trim() === '') {
+    return { error: 'Phone is required' }
+  }
+  if (!village || village.trim() === '') {
+    return { error: 'Village is required' }
+  }
+
+  try {
+    const { data: memberships, error: memError } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('profile_id', user.id)
+      .eq('is_active', true)
+      .limit(1)
+
+    if (memError || !memberships || memberships.length === 0) {
+      return { error: 'No active organization found' }
+    }
+
+    const organization_id = memberships[0].organization_id
+
+    const { data, error: insertError } = await supabase
+      .from('customers')
+      .insert({
+        organization_id,
+        name: name.trim(),
+        phone_number: phone.trim(),
+        village: village.trim(),
+        is_active: true
+      })
+      .select('id, name, phone_number, email, village')
+      .single()
+
+    if (insertError) {
+      if (insertError.code === '23505') {
+        return { error: 'A customer with this phone number already exists.' }
+      }
+      return { error: insertError.message }
+    }
+
+    return { success: true, customer: data }
+  } catch (err: unknown) {
+    console.error('Create customer error:', err)
+    return { error: 'An unexpected error occurred while creating the customer' }
+  }
+}
