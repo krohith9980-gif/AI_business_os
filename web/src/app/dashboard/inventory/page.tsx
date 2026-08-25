@@ -47,7 +47,7 @@ export default async function InventoryPage() {
     .from('product_variants')
     .select(`
       id, sku, tracking_mode,
-      product:product_id (name)
+      product:products (name)
     `)
     .eq('organization_id', activeOrgId)
     .eq('is_active', true)

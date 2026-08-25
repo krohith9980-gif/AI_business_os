@@ -90,10 +90,10 @@ export default async function ProductsPage({
         unit_of_measure,
         packaging_type,
         units_per_pack,
-        product:product_id!inner (
+        product:products!inner (
           id,
           name,
-          category:category_id (
+          category:categories (
             id,
             name
           )

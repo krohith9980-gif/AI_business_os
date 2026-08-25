@@ -79,7 +79,7 @@ export default async function POSPage() {
       packaging_type,
       units_per_pack,
       product_id,
-      product:product_id!inner (name)
+      product:products!inner (name)
     `)
     .eq('organization_id', organization_id)
     .eq('is_active', true)
