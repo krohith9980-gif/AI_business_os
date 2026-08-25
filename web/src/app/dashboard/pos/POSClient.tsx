@@ -295,7 +295,7 @@ export default function POSClient({
                 type="text"
                 value={custName}
                 onChange={(e) => setCustName(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 placeholder="Ramesh Kumar"
               />
             </div>
@@ -305,7 +305,7 @@ export default function POSClient({
                 type="text"
                 value={custPhone}
                 onChange={(e) => setCustPhone(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 placeholder="9876543210"
               />
             </div>
@@ -335,7 +335,7 @@ export default function POSClient({
                   type="text"
                   value={custVillage}
                   onChange={(e) => setCustVillage(e.target.value)}
-                  className="mt-1 block w-full sm:w-1/2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  className="mt-1 block w-full sm:w-1/2 rounded-md border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                   placeholder="Miryala"
                 />
               </div>

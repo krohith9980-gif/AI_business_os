@@ -73,11 +73,16 @@ export default async function SalesPage({
   // 2. Fetch Sales with filtering
   let selectString = `
     id,
-    created_at,
-    status,
-    grand_total,
     store_id,
-    stores ( name ),
+    customer_id,
+    cashier_id,
+    status,
+    subtotal,
+    tax_total,
+    discount_total,
+    grand_total,
+    created_at,
+    stores!sales_store_id_fkey ( name ),
     profiles ( full_name ),
     payments ( status, method )
   `
