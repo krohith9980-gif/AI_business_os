@@ -15,6 +15,7 @@ type Variant = {
   unit_of_measure: string
   packaging_type: string
   units_per_pack: number
+  item_size: number
 }
 
 type Inventory = {
@@ -425,7 +426,9 @@ export default function POSClient({
                         {variant.productName}
                       </span>
                       <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ml-2 ${stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {stock} {variant.unit_of_measure}
+                        {stock >= 1000 && variant.unit_of_measure === 'ML' ? `${stock / 1000} L` 
+                         : stock >= 1000 && variant.unit_of_measure === 'G' ? `${stock / 1000} KG` 
+                         : `${stock} ${variant.unit_of_measure}`}
                       </span>
                     </div>
                     <span className="text-sm text-gray-500 truncate w-full" title={variant.variantName}>
@@ -433,19 +436,35 @@ export default function POSClient({
                     </span>
                     <div className="mt-3 flex flex-col gap-2 w-full">
                       <span className="text-xs text-gray-400">{variant.sku}</span>
-                      <div className="flex flex-wrap gap-2 mt-1">
+                      <div className="flex flex-col gap-2 mt-1">
                         <button 
-                          onClick={() => addToCart(variant, variant.unit_of_measure)}
-                          className="px-2 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                          onClick={() => addToCart(variant, 'PIECE')}
+                          className="px-3 py-2 text-xs font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200 transition-colors text-left flex justify-between items-center"
                         >
-                          <span className="font-medium">+ {variant.unit_of_measure} ({formatCurrency(variant.selling_price)})</span>
+                          <div>
+                            <div className="font-bold">+ PIECE</div>
+                            <div className="text-indigo-600/80 font-medium">{variant.item_size} {variant.unit_of_measure}</div>
+                          </div>
+                          <div className="font-bold">{formatCurrency(variant.selling_price)}</div>
                         </button>
                         {variant.packaging_type !== 'NONE' && (
                           <button 
                             onClick={() => addToCart(variant, variant.packaging_type)}
-                            className="px-2 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                            className="px-3 py-2 text-xs font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200 transition-colors text-left flex justify-between items-center"
                           >
-                            <span className="font-medium">+ {variant.packaging_type} ({formatCurrency(variant.selling_price * variant.units_per_pack)})</span>
+                            <div>
+                              <div className="font-bold">+ {variant.packaging_type}</div>
+                              <div className="text-indigo-600/80 font-medium flex flex-col">
+                                <span>{variant.units_per_pack} × {variant.item_size} {variant.unit_of_measure}</span>
+                                {variant.unit_of_measure === 'ML' && (variant.units_per_pack * variant.item_size) >= 1000 && (
+                                  <span>{ (variant.units_per_pack * variant.item_size) / 1000 } L</span>
+                                )}
+                                {variant.unit_of_measure === 'G' && (variant.units_per_pack * variant.item_size) >= 1000 && (
+                                  <span>{ (variant.units_per_pack * variant.item_size) / 1000 } KG</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="font-bold">{formatCurrency(variant.selling_price * variant.units_per_pack)}</div>
                           </button>
                         )}
                       </div>

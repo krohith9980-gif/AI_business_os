@@ -52,6 +52,8 @@ export async function addProduct(formData: FormData) {
     
     // Packaging & Stock fields
     const unitOfMeasure = formData.get('unit_of_measure')?.toString() || 'PCS'
+    const itemSizeStr = formData.get('item_size')?.toString()
+    const itemSize = itemSizeStr && !isNaN(parseFloat(itemSizeStr)) ? parseFloat(itemSizeStr) : 1
     const packagingType = formData.get('packaging_type')?.toString() || 'NONE'
     const unitsPerPack = parseInt(formData.get('units_per_pack')?.toString() || '1', 10)
     
@@ -98,7 +100,8 @@ export async function addProduct(formData: FormData) {
         p_is_active: true,
         p_unit_of_measure: unitOfMeasure,
         p_packaging_type: packagingType,
-        p_units_per_pack: unitsPerPack
+        p_units_per_pack: unitsPerPack,
+        p_item_size: itemSize
     })
 
     if (rpcError) {

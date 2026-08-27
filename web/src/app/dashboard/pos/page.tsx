@@ -78,6 +78,7 @@ export default async function POSPage() {
       unit_of_measure,
       packaging_type,
       units_per_pack,
+      item_size,
       product_id,
       product:products!inner (name)
     `)
@@ -101,7 +102,8 @@ export default async function POSPage() {
     selling_price: v.selling_price,
     unit_of_measure: v.unit_of_measure,
     packaging_type: v.packaging_type,
-    units_per_pack: v.units_per_pack
+    units_per_pack: v.units_per_pack,
+    item_size: v.item_size
   }))
 
   return (

@@ -61,6 +61,30 @@ export default function ProductsClient({
   const [unitsPerPack, setUnitsPerPack] = useState(1)
   const [openingStock, setOpeningStock] = useState(0)
 
+  const [itemSizePreset, setItemSizePreset] = useState('1_PCS')
+  const [itemSize, setItemSize] = useState('1')
+  const [itemUnit, setItemUnit] = useState('PCS')
+
+  const currentItemSize = parseFloat(itemSize) || 0
+  const currentItemUnit = itemUnit
+
+  const totalPackageBase = currentItemSize * unitsPerPack
+  const displayPackageUnit = (currentItemUnit === 'ML' && totalPackageBase >= 1000) ? 'L' 
+    : (currentItemUnit === 'G' && totalPackageBase >= 1000) ? 'KG' 
+    : currentItemUnit
+  const displayPackageValue = (currentItemUnit === 'ML' && totalPackageBase >= 1000) ? totalPackageBase / 1000 
+    : (currentItemUnit === 'G' && totalPackageBase >= 1000) ? totalPackageBase / 1000 
+    : totalPackageBase
+
+  const handlePresetChange = (val: string) => {
+    setItemSizePreset(val)
+    if (val !== 'CUSTOM') {
+      const [s, u] = val.split('_')
+      setItemSize(s)
+      setItemUnit(u)
+    }
+  }
+
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setSearch(val)
@@ -247,15 +271,75 @@ export default function ProductsClient({
                 <div className="sm:col-span-2 mt-4 pt-4 border-t border-gray-200">
                   <h4 className="text-md font-medium text-gray-900 mb-4">Stock & Packaging</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="unit_of_measure" className="block text-sm font-medium text-gray-700">How is this product sold? (Base Unit) *</label>
-                      <select name="unit_of_measure" id="unit_of_measure" required className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                        <option value="Piece">Piece</option>
-                        <option value="Kg">Kg</option>
-                        <option value="Gram">Gram</option>
-                        <option value="Litre">Litre</option>
-                        <option value="Ml">Ml</option>
-                      </select>
+                    <div className="col-span-full">
+                      <label htmlFor="item_size" className="block text-sm font-medium text-gray-700">Item Size *</label>
+                      <div className="mt-1 flex flex-col sm:flex-row gap-2">
+                        {/* PRIMARY: Editable numerical value and unit */}
+                        <div className="flex-1 flex gap-2">
+                          <input 
+                            type="number" 
+                            step="any"
+                            min="0.0001"
+                            name="item_size"
+                            id="item_size"
+                            value={itemSize}
+                            onChange={(e) => { setItemSize(e.target.value); setItemSizePreset('CUSTOM'); }}
+                            placeholder="Enter value, e.g. 500"
+                            required
+                            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          />
+                          <select 
+                            name="unit_of_measure"
+                            id="unit_of_measure"
+                            value={itemUnit}
+                            onChange={(e) => { setItemUnit(e.target.value); setItemSizePreset('CUSTOM'); }}
+                            className="block w-32 rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          >
+                            <option value="G">G</option>
+                            <option value="KG">KG</option>
+                            <option value="ML">ML</option>
+                            <option value="L">L</option>
+                            <option value="PCS">PCS</option>
+                          </select>
+                        </div>
+
+                        {/* SECONDARY: Quick Selections */}
+                        <div className="sm:w-1/3">
+                          <select 
+                            id="item_size_preset" 
+                            value={itemSizePreset}
+                            onChange={(e) => handlePresetChange(e.target.value)}
+                            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-500 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-gray-50"
+                          >
+                            <option value="CUSTOM">Quick Selections...</option>
+                            <optgroup label="WEIGHT">
+                              <option value="50_G">50 G</option>
+                              <option value="100_G">100 G</option>
+                              <option value="250_G">250 G</option>
+                              <option value="500_G">500 G</option>
+                              <option value="1_KG">1 KG</option>
+                              <option value="2_KG">2 KG</option>
+                              <option value="5_KG">5 KG</option>
+                              <option value="10_KG">10 KG</option>
+                              <option value="25_KG">25 KG</option>
+                              <option value="50_KG">50 KG</option>
+                            </optgroup>
+                            <optgroup label="LIQUID">
+                              <option value="50_ML">50 ML</option>
+                              <option value="100_ML">100 ML</option>
+                              <option value="250_ML">250 ML</option>
+                              <option value="500_ML">500 ML</option>
+                              <option value="750_ML">750 ML</option>
+                              <option value="1_L">1 L</option>
+                              <option value="2_L">2 L</option>
+                              <option value="5_L">5 L</option>
+                            </optgroup>
+                            <optgroup label="COUNT">
+                              <option value="1_PCS">1 PCS</option>
+                            </optgroup>
+                          </select>
+                        </div>
+                      </div>
                     </div>
 
                     <div>
@@ -276,7 +360,7 @@ export default function ProductsClient({
 
                     {packagingType !== 'NONE' && (
                       <div>
-                        <label htmlFor="units_per_pack" className="block text-sm font-medium text-gray-700">How many base units in 1 {packagingType.toLowerCase()}? *</label>
+                        <label htmlFor="units_per_pack" className="block text-sm font-medium text-gray-700">Items per {packagingType.toLowerCase()} *</label>
                         <input 
                           type="number" 
                           min="1" 
@@ -287,6 +371,18 @@ export default function ProductsClient({
                           onChange={(e) => setUnitsPerPack(Math.max(1, parseInt(e.target.value) || 1))}
                           className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" 
                         />
+                      </div>
+                    )}
+
+                    {packagingType !== 'NONE' && currentItemSize > 0 && (
+                      <div className="col-span-full bg-blue-50 p-4 rounded-md border border-blue-100 flex flex-col items-center justify-center">
+                        <span className="text-sm text-blue-600 font-medium mb-1">Package Size Calculator</span>
+                        <div className="text-lg text-blue-900 font-bold">
+                          1 {packagingType} = {unitsPerPack} × {currentItemSize} {currentItemUnit}
+                        </div>
+                        <div className="text-2xl text-blue-700 font-black mt-1">
+                          = {displayPackageValue} {displayPackageUnit}
+                        </div>
                       </div>
                     )}
                   </div>
