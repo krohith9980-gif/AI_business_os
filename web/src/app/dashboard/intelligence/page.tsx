@@ -1,41 +1,33 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import IntelligenceDashboardClient from './IntelligenceDashboardClient';
 
 export default async function IntelligenceDashboardPage() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  );
+  const supabase = await createClient();
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
     redirect('/auth/login');
   }
 
-  // Get current user's profile to find organization_id
-  const { data: profile } = await supabase
-    .from('profiles')
+  // Get current user's active organization from memberships
+  const { data: memberships } = await supabase
+    .from('organization_members')
     .select('organization_id')
-    .eq('id', session.user.id)
-    .single();
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .order('created_at', { ascending: true })
+    .limit(1);
 
-  if (!profile?.organization_id) {
+  const activeOrgId = memberships?.[0]?.organization_id;
+
+  if (!activeOrgId) {
     redirect('/dashboard');
   }
 
   // Fetch the secure dashboard view
   const { data: intelligenceData, error } = await supabase
-    .rpc('get_intelligence_dashboard', { p_org_id: profile.organization_id });
+    .rpc('get_intelligence_dashboard', { p_org_id: activeOrgId });
 
   if (error) {
     console.error('Error fetching intelligence dashboard:', error);
@@ -54,7 +46,7 @@ export default async function IntelligenceDashboardPage() {
       
       <IntelligenceDashboardClient 
         initialData={intelligenceData || []} 
-        organizationId={profile.organization_id} 
+        organizationId={activeOrgId} 
       />
     </div>
   );
