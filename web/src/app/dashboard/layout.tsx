@@ -5,6 +5,7 @@ import { logout } from '@/app/login/actions'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
+  { name: 'Intelligence', href: '/dashboard/intelligence' },
   { name: 'POS', href: '/dashboard/pos' },
   { name: 'Products', href: '/dashboard/products' },
   { name: 'Inventory', href: '/dashboard/inventory' },

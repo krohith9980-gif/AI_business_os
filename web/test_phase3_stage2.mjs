@@ -1,0 +1,82 @@
+import { createClient } from '@supabase/supabase-js';
+
+function convertBaseToPackages(recommendedBaseUnits, itemSize, unitsPerPack) {
+  const safeItemSize = itemSize > 0 ? itemSize : 1;
+  const physicalItems = Math.ceil(recommendedBaseUnits / safeItemSize);
+  const safeUnitsPerPack = unitsPerPack > 0 ? unitsPerPack : 1;
+  const purchasePackages = Math.ceil(physicalItems / safeUnitsPerPack);
+  return { physicalItems, purchasePackages };
+}
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lhtibverxjpcvmajzazv.supabase.co';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxodGlidmVyeGpwY3ZtYWp6YXp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MjgxMTgsImV4cCI6MjEwMjMwNDExOH0.N_DwZogAi_wqfmZdjlFBeeV59fMkv46n2PoqJNoHOvM';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let passCount = 0;
+let failCount = 0;
+
+function assert(condition, name, expected, actual, details = '') {
+  if (condition) {
+    console.log(`\x1b[32m✓ PASS\x1b[0m | ${name.padEnd(6)} | ${String(expected).padEnd(20)} | ${String(actual).padEnd(20)} | ${details}`);
+    passCount++;
+  } else {
+    console.log(`\x1b[31m✗ FAIL\x1b[0m | ${name.padEnd(6)} | ${String(expected).padEnd(20)} | ${String(actual).padEnd(20)} | ${details}`);
+    failCount++;
+  }
+}
+
+async function runTests() {
+  console.log("==================================================");
+  console.log("PHASE 3: STAGE 2 DASHBOARD TESTS");
+  console.log("==================================================");
+  
+  const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+    email: 'krohith9980@gmail.com',
+    password: 'Rohith89@@'
+  });
+  if (loginError) {
+    console.error('Login Error:', loginError);
+    return;
+  }
+  
+  // Find org id
+  const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
+  const orgA = orgData.id;
+  const orgB = '00000000-0000-0000-0000-000000000000'; // Fake ID representing another org
+  
+  // Call RPC with Org A
+  const { data: dashA, error: errA } = await supabase.rpc('get_intelligence_dashboard', { p_org_id: orgA });
+  
+  // Call RPC with Org B
+  const { data: dashB, error: errB } = await supabase.rpc('get_intelligence_dashboard', { p_org_id: orgB });
+
+  assert(!errA, "RLS-A", "Success", errA?.message || "Success", "Org A can access its dashboard");
+  assert(errB && errB.message.includes('Unauthorized'), "RLS-B", "Unauthorized", errB?.message || 'Success', "Org A cannot read Org B dashboard");
+  
+  // Test anonymous
+  const anonClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const { data: anonDash, error: anonErr } = await anonClient.rpc('get_intelligence_dashboard', { p_org_id: orgA });
+  assert(anonErr && anonErr.message.includes('Unauthorized'), "RLS-C", "Unauthorized", anonErr?.message || 'Success', "Anonymous users cannot read intelligence");
+
+  // 4. Test AI API Failure Handling (Degradation)
+  try {
+    const aiRes = await fetch(`http://localhost:3000/api/intelligence/explain`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ facts: { test: 1 } })
+    });
+    
+    // It should either return 200 (if key is set) or 503 (if key missing)
+    // The requirement is that it fails gracefully
+    assert(aiRes.status === 200 || aiRes.status === 503, "AI-1", "200 or 503", aiRes.status, "AI API route handles degradation gracefully");
+  } catch (e) {
+    // If next.js server isn't running, we skip this or show warning
+    console.log(`\x1b[33m! WARN\x1b[0m | AI-1   | Server not running, skipped API test`);
+  }
+
+  console.log("==================================================");
+  console.log(`Tests Completed: ${passCount} Passed, ${failCount} Failed`);
+}
+
+runTests().catch(console.error);
