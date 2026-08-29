@@ -1,7 +1,15 @@
+import { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { logout } from '@/app/login/actions'
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+}
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
