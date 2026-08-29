@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing or invalid facts object' }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
 
     const prompt = `
 System Instruction:
@@ -42,7 +42,8 @@ Output the explanation:`;
 
     return NextResponse.json({ explanation: responseText.trim() });
   } catch (error: unknown) {
-    console.error('Error generating AI explanation:', error);
+    // Log the exact error message safely on the server
+    console.error('Gemini API Error:', error instanceof Error ? error.message : error);
     return NextResponse.json({ error: 'Failed to generate explanation' }, { status: 500 });
   }
 }
