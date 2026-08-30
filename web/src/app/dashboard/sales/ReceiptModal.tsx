@@ -51,7 +51,7 @@ export default function ReceiptModal({ saleId, onClose }: { saleId: string; onCl
         .from('sales')
         .select(`
           id, created_at, subtotal, discount_total, tax_total, grand_total, status,
-          stores ( name ),
+          store_id, organization_id,
           profiles ( full_name ),
           customers ( name, phone_number )
         `)
@@ -62,6 +62,19 @@ export default function ReceiptModal({ saleId, onClose }: { saleId: string; onCl
         setError(saleError?.message || 'Sale not found')
         setLoading(false)
         return
+      }
+
+      // Safely fetch store to avoid PostgREST ambiguity with multiple FKs
+      // We explicitly enforce organization_id to respect multi-tenant boundaries
+      const { data: storeData, error: storeError } = await supabase
+        .from('stores')
+        .select('name')
+        .eq('id', saleData.store_id)
+        .eq('organization_id', saleData.organization_id)
+        .single()
+
+      if (storeError) {
+        console.error('Failed to fetch store for receipt:', storeError)
       }
 
       const { data: itemsData } = await supabase
@@ -85,7 +98,7 @@ export default function ReceiptModal({ saleId, onClose }: { saleId: string; onCl
         tax_total: saleData.tax_total,
         grand_total: saleData.grand_total,
         status: saleData.status,
-        store: saleData.stores as unknown as { name: string },
+        store: storeData ? { name: storeData.name } : { name: 'Unknown Store' },
         cashier: saleData.profiles as unknown as { full_name: string },
         customer: saleData.customers as unknown as { name: string; phone_number: string | null },
         items: (itemsData || []).map((item: { id: string; quantity: number; unit_selling_price: number; discount_amount: number; total_price: number; product_variants: { name: string; sku: string; products: { name: string } | null } | null | unknown }) => ({
