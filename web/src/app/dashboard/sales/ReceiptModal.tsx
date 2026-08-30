@@ -22,7 +22,6 @@ type ReceiptData = {
     discount_amount: number
     total_price: number
     product_variant: {
-      name: string
       sku: string
       products: { name: string } | null
     } | null
@@ -77,13 +76,17 @@ export default function ReceiptModal({ saleId, onClose }: { saleId: string; onCl
         console.error('Failed to fetch store for receipt:', storeError)
       }
 
-      const { data: itemsData } = await supabase
+      const { data: itemsData, error: itemsError } = await supabase
         .from('sale_items')
         .select(`
           id, quantity, unit_selling_price, discount_amount, total_price,
-          product_variants ( name, sku, products ( name ) )
+          product_variants ( sku, products ( name ) )
         `)
         .eq('sale_id', saleId)
+
+      if (itemsError) {
+        console.error('Failed to fetch sale items for receipt:', itemsError)
+      }
 
       const { data: paymentsData } = await supabase
         .from('payments')
@@ -101,9 +104,9 @@ export default function ReceiptModal({ saleId, onClose }: { saleId: string; onCl
         store: storeData ? { name: storeData.name } : { name: 'Unknown Store' },
         cashier: saleData.profiles as unknown as { full_name: string },
         customer: saleData.customers as unknown as { name: string; phone_number: string | null },
-        items: (itemsData || []).map((item: { id: string; quantity: number; unit_selling_price: number; discount_amount: number; total_price: number; product_variants: { name: string; sku: string; products: { name: string } | null } | null | unknown }) => ({
+        items: (itemsData || []).map((item: { id: string; quantity: number; unit_selling_price: number; discount_amount: number; total_price: number; product_variants: { sku: string; products: { name: string } | null } | null | unknown }) => ({
           ...item,
-          product_variant: item.product_variants as { name: string; sku: string; products: { name: string } | null } | null
+          product_variant: item.product_variants as { sku: string; products: { name: string } | null } | null
         })),
         payments: paymentsData || []
       })
@@ -188,7 +191,7 @@ export default function ReceiptModal({ saleId, onClose }: { saleId: string; onCl
                       <tr key={item.id}>
                         <td className="py-3">
                           <p className="font-medium">{item.product_variant?.products?.name || 'Unknown'}</p>
-                          <p className="text-xs text-gray-500">{item.product_variant?.name} {item.product_variant?.sku ? `(${item.product_variant.sku})` : ''}</p>
+                          <p className="text-xs text-gray-500">{item.product_variant?.sku ? `SKU: ${item.product_variant.sku}` : ''}</p>
                         </td>
                         <td className="py-3 text-right">{item.quantity}</td>
                         <td className="py-3 text-right">{formatCurrency(item.unit_selling_price)}</td>
