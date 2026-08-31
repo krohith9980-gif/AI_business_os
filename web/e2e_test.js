@@ -36,6 +36,35 @@ async function runTest() {
   // Login
   await supabase.auth.signInWithPassword({ email, password });
 
+  
+  // STRONGER E2E SAFETY GUARD
+  const PROD_ORG_ID = 'ec19612a-e6e7-4145-8344-4c46d0e8e555';
+  const TEST_ORG_ID = process.env.TEST_ORG_ID;
+  const IS_TEST_ENV = process.env.TEST_ENV === 'true';
+  const URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  
+  if (!IS_TEST_ENV) {
+    console.error('CRITICAL SAFETY ABORT: TEST_ENV is not explicitly enabled.');
+    process.exit(1);
+  }
+  if (!TEST_ORG_ID) {
+    console.error('CRITICAL SAFETY ABORT: TEST_ORG_ID must be explicitly supplied.');
+    process.exit(1);
+  }
+  if (TEST_ORG_ID === PROD_ORG_ID) {
+    console.error('CRITICAL SAFETY ABORT: TEST_ORG_ID must NOT equal PRODUCTION_ORG_ID.');
+    process.exit(1);
+  }
+  if (URL.includes('lhtibverxjpcvmajzazv')) {
+    console.error('CRITICAL SAFETY ABORT: Production Supabase URL detected. Run tests against a dedicated TEST instance.');
+    process.exit(1);
+  }
+  
+  // Ensure we don't automatically select the first organization
+  const orgId = TEST_ORG_ID;
+
+
+
   // 2. Setup Organization via RPC
   console.log("Setting up Organization...");
   const { data: orgId, error: setupError } = await supabase.rpc('create_organization_and_store', {
