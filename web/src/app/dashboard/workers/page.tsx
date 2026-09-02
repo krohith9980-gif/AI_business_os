@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import WorkersClient from './WorkersClient'
 
 export default async function WorkersPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
@@ -74,7 +74,7 @@ export default async function WorkersPage() {
 
       unifiedList.push({
         id: m.profile_id,
-        type: 'MEMBER',
+        type: 'MEMBER' as const,
         name: (m.profiles as any)?.full_name || 'Unknown',
         phone: 'Registered User',
         role: m.role,
@@ -89,7 +89,7 @@ export default async function WorkersPage() {
     for (const inv of invitations) {
       unifiedList.push({
         id: inv.id,
-        type: 'INVITATION',
+        type: 'INVITATION' as const,
         name: inv.intended_name,
         phone: inv.phone_number,
         role: inv.role,
