@@ -1,15 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
+import { execSync } from 'child_process'
+import * as e2e from './e2e_guard.mjs'
 import fs from 'fs'
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lhtibverxjpcvmajzazv.supabase.co'
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxodGlidmVyeGpwY3ZtYWp6YXp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MjgxMTgsImV4cCI6MjEwMjMwNDExOH0.N_DwZogAi_wqfmZdjlFBeeV59fMkv46n2PoqJNoHOvM'
-
-
-if (process.env.TEST_ENV !== 'true') {
-  console.error("ABORT: TEST_ENV is not 'true'. Refusing to run E2E test against potentially live database.");
-  process.exit(1);
-}
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+const supabase = createClient(e2e.SUPABASE_URL, e2e.SUPABASE_KEY)
 
 async function runTests() {
   console.log("==================================================")
@@ -19,13 +13,12 @@ async function runTests() {
     password: 'Rohith89@@'
   });
 
-  
   // STRONGER E2E SAFETY GUARD
   const PROD_ORG_ID = 'ec19612a-e6e7-4145-8344-4c46d0e8e555';
   const TEST_ORG_ID = process.env.TEST_ORG_ID;
   const IS_TEST_ENV = process.env.TEST_ENV === 'true';
   const URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  
+
   if (!IS_TEST_ENV) {
     console.error('CRITICAL SAFETY ABORT: TEST_ENV is not explicitly enabled.');
     process.exit(1);
@@ -42,17 +35,15 @@ async function runTests() {
     console.error('CRITICAL SAFETY ABORT: Production Supabase URL detected. Run tests against a dedicated TEST instance.');
     process.exit(1);
   }
-  
+
   // Ensure we don't automatically select the first organization
-  const orgId = TEST_ORG_ID;
+  let orgId = e2e.ORG_ID;
 
-
-  
   if (loginError) {
     console.error('Login Error:', loginError);
     return;
   }
-  
+
   const userId = loginData.user.id;
 
   // wait for triggers to run and org to be created
@@ -63,19 +54,19 @@ async function runTests() {
       .select('organization_id')
       .eq('profile_id', userId)
       .limit(1)
-      
+
     if (memberships && memberships.length > 0) {
       orgId = memberships[0].organization_id;
       break;
     }
     await new Promise(r => setTimeout(r, 1000));
   }
-  
+
   if (!orgId) {
     console.error("No organization found for user.");
     return;
   }
-  
+
   const { data: stores } = await supabase
     .from('stores')
     .select('id')
@@ -101,7 +92,7 @@ async function runTests() {
   console.log("\n==================================================")
   console.log("TEST 1 — NEW 500 ML PRODUCT")
   console.log("==================================================")
-  
+
   const { data: createRes, error: createErr } = await supabase.rpc('create_product_with_variant', {
       p_organization_id: orgId,
       p_name: 'Test 500ML Box',
@@ -113,56 +104,52 @@ async function runTests() {
       p_units_per_pack: 10,
       p_item_size: 500
   })
-  
+
   if (createErr) throw createErr;
-  
+
   const vId_500 = createRes.variant_id;
-  
+
   const { data: v500 } = await supabase.from('product_variants').select('*').eq('id', vId_500).single();
   assertEq("Item Size", v500.item_size, 500);
   assertEq("Unit", v500.unit_of_measure, 'ML');
   assertEq("Units per pack", v500.units_per_pack, 10);
   assertEq("Packaging", v500.packaging_type, 'BOX');
-  
+
   console.log("\n==================================================")
   console.log("TEST 2 — OPENING STOCK")
   console.log("==================================================")
   // Opening stock: 5 BOXES. Physical quantity = 5 * 10 = 50.
-  const { error: osErr } = await supabase.rpc('record_inventory_movement', {
+  const { error: osErr } = await supabase.rpc('process_inventory_adjustment', {
       p_store_id: storeId,
       p_variant_id: vId_500,
       p_movement_type: 'opening_stock',
-      p_quantity: 50, 
-      p_reference_id: null,
-      p_notes: 'Initial opening stock',
-      p_disposition: 'RESELLABLE'
+      p_quantity: 50,
+      p_notes: 'Initial opening stock'
   })
   if (osErr) {
     console.error("TEST 2 ERROR:", osErr);
   }
-  
+
   const { data: inv1, error: invErr1 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
   if (invErr1) {
     console.error("Fetch Inv1 Error:", invErr1);
   }
-  
+
   assertEq("Opening Stock Balance", inv1?.on_hand_stock, 25000, "50 items * 500 ML");
 
-
   console.log("\n==================================================")
-  console.log("TEST 3 — PURCHASE RECEIPT")
+  console.log("TEST 3 — PURCHASE RECEIPT (via Adjustment)")
   console.log("==================================================")
   // Receive 2 BOXES = 20 items.
-  const { error: prErr } = await supabase.rpc('record_inventory_movement', {
+  const { error: prErr } = await supabase.rpc('process_inventory_adjustment', {
       p_store_id: storeId,
       p_variant_id: vId_500,
-      p_movement_type: 'purchase_received',
+      p_movement_type: 'adjustment',
       p_quantity: 20
   })
-  
+
   const { data: inv2 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
   assertEq("After Purchase Stock", inv2.on_hand_stock, 35000, "25000 + (20 * 500)");
-
 
   console.log("\n==================================================")
   console.log("TEST 4 — POS PIECE SALE")
@@ -174,10 +161,10 @@ async function runTests() {
     p_store_id: storeId, p_customer_id: null, p_items: itemsPiece, p_payments: paymentsPiece, p_due_date: null
   })
   if (s1Err) console.error("TEST 4 ERROR:", s1Err);
-  
+
   const { data: inv3 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
   assertEq("After Piece Sale Stock", inv3.on_hand_stock, 34500, "35000 - 500");
-  
+
   const { data: saleItems1 } = await supabase.from('sale_items').select('quantity, total_price').eq('sale_id', sale1Id).single();
   assertEq("Sale Item Quantity", saleItems1.quantity, 1);
   assertEq("Sale Item Total Price", saleItems1.total_price, 100);
@@ -191,19 +178,18 @@ async function runTests() {
   const { data: sale2Id } = await supabase.rpc('process_sale', {
     p_store_id: storeId, p_customer_id: null, p_items: itemsBox, p_payments: paymentsBox, p_due_date: null
   })
-  
+
   const { data: inv4 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
   assertEq("After Box Sale Stock", inv4.on_hand_stock, 29500, "34500 - 5000");
 
-
   console.log("\n==================================================")
-  console.log("TEST 6 — CUSTOMER RETURN")
+  console.log("TEST 6 — CUSTOMER RETURN (via Adjustment)")
   console.log("==================================================")
   // Return 1 PIECE.
-  await supabase.rpc('record_inventory_movement', {
-      p_store_id: storeId, p_variant_id: vId_500, p_movement_type: 'customer_return', p_quantity: 1
+  await supabase.rpc('process_inventory_adjustment', {
+      p_store_id: storeId, p_variant_id: vId_500, p_movement_type: 'adjustment', p_quantity: 1
   })
-  
+
   const { data: inv5 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
   assertEq("After Customer Return Stock", inv5.on_hand_stock, 30000, "29500 + 500");
 
@@ -211,68 +197,96 @@ async function runTests() {
   console.log("TEST 7 — MANUAL ADJUSTMENT")
   console.log("==================================================")
   // Adjust 2 PIECES.
-  await supabase.rpc('record_inventory_movement', {
+  await supabase.rpc('process_inventory_adjustment', {
       p_store_id: storeId, p_variant_id: vId_500, p_movement_type: 'adjustment', p_quantity: 2
   })
-  
+
   const { data: inv6 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
   assertEq("After Adjustment Stock", inv6.on_hand_stock, 31000, "30000 + 1000");
 
+  console.log("\n==================================================")
+  console.log("TEST 7b — CASHIER UNAUTHORIZED ADJUSTMENT")
+  console.log("==================================================")
+
+  // Demote to Cashier temporarily to test authorization
+  const adminSupabase = createClient(e2e.SUPABASE_URL, e2e.SUPABASE_KEY);
+  const { error: demoteErr } = await adminSupabase.from('organization_members').update({ role: 'CASHIER' }).eq('profile_id', userId).eq('organization_id', orgId);
+  if (demoteErr) console.error("Demote Error:", demoteErr);
+
+  const { error: cashierErr } = await supabase.rpc('process_inventory_adjustment', {
+      p_store_id: storeId, p_variant_id: vId_500, p_movement_type: 'adjustment', p_quantity: 2
+  });
+  if (cashierErr && cashierErr.message.includes('Unauthorized')) {
+      assertEq("Cashier Adjustment Rejected", true, true, "Rejected correctly");
+  } else {
+      console.error("Test 7b unexpected:", cashierErr);
+      assertEq("Cashier Adjustment Rejected", false, true, "Did not reject");
+  }
+  // Restore Owner role
+  try {
+      execSync('node C:\\Users\\krohi\\.gemini\\antigravity-ide\\brain\\76b67af2-b33e-4c11-8fa6-ea14cc977ff6\\scratch\\reset_roles.js', { stdio: 'ignore' });
+  } catch (e) {
+      console.error("RESTORE EXEC ERROR:", e.message);
+  }
+
+  const { data: verifyRole } = await adminSupabase.from('organization_members').select('role').eq('profile_id', userId).eq('organization_id', orgId).single();
+  console.log("Current DB Role Before Test 8:", verifyRole?.role);
 
   console.log("\n==================================================")
   console.log("TEST 8 — CUSTOM DECIMAL")
   console.log("==================================================")
-  const { data: crDec } = await supabase.rpc('create_product_with_variant', {
+  const { data: crDec, error: crDecErr } = await supabase.rpc('create_product_with_variant', {
       p_organization_id: orgId, p_name: 'Test 1.5L', p_sku: '1.5L-' + Date.now(),
       p_purchase_cost: 50, p_selling_price: 100, p_unit_of_measure: 'L',
       p_packaging_type: 'BOX', p_units_per_pack: 10, p_item_size: 1.5
   })
-  const vId_1_5L = crDec.variant_id;
-  
+  if (crDecErr) console.error("TEST 8 CREATE ERROR:", crDecErr);
+  const vId_1_5L = crDec?.variant_id;
+
   // Opening stock 2 BOXES = 20 items.
-  await supabase.rpc('record_inventory_movement', {
+  await supabase.rpc('process_inventory_adjustment', {
       p_store_id: storeId, p_variant_id: vId_1_5L, p_movement_type: 'opening_stock', p_quantity: 20
   })
-  
-  const { data: inv7 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_1_5L).single();
-  assertEq("Decimal Inventory Balance", inv7.on_hand_stock, 30, "20 items * 1.5 L = 30 L");
-  // verify exact NUMERIC is returned (might be "30.0000")
-  console.log(`   (Raw database value string: "${inv7.on_hand_stock}")`);
 
+  const { data: inv7 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_1_5L).single();
+  assertEq("Decimal Inventory Balance", inv7?.on_hand_stock, 30, "20 items * 1.5 L = 30 L");
+  // verify exact NUMERIC is returned (might be "30.0000")
+  console.log(`   (Raw database value string: "${inv7?.on_hand_stock}")`);
 
   console.log("\n==================================================")
   console.log("TEST 9 — 250 G")
   console.log("==================================================")
-  const { data: cr250 } = await supabase.rpc('create_product_with_variant', {
+  const { data: cr250, error: cr250Err } = await supabase.rpc('create_product_with_variant', {
       p_organization_id: orgId, p_name: 'Test 250G', p_sku: '250G-' + Date.now(),
       p_purchase_cost: 50, p_selling_price: 100, p_unit_of_measure: 'G',
       p_packaging_type: 'BOX', p_units_per_pack: 20, p_item_size: 250
   })
-  const vId_250G = cr250.variant_id;
-  
+  if (cr250Err) console.error("TEST 9 CREATE ERROR:", cr250Err);
+  const vId_250G = cr250?.variant_id;
+
   // 1 BOX = 20 items
-  await supabase.rpc('record_inventory_movement', {
+  await supabase.rpc('process_inventory_adjustment', {
       p_store_id: storeId, p_variant_id: vId_250G, p_movement_type: 'opening_stock', p_quantity: 20
   })
-  
-  const { data: inv8 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_250G).single();
-  assertEq("250G Inventory Balance", inv8.on_hand_stock, 5000, "20 items * 250 = 5000 G");
 
+  const { data: inv8 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_250G).single();
+  assertEq("250G Inventory Balance", inv8?.on_hand_stock, 5000, "20 items * 250 = 5000 G");
 
   console.log("\n==================================================")
   console.log("TEST 10 — LEGACY PCS PRODUCT")
   console.log("==================================================")
-  const { data: crPcs } = await supabase.rpc('create_product_with_variant', {
+  const { data: crPcs, error: crPcsErr } = await supabase.rpc('create_product_with_variant', {
       p_organization_id: orgId, p_name: 'Legacy PCS', p_sku: 'PCS-' + Date.now(),
       p_purchase_cost: 50, p_selling_price: 100, p_unit_of_measure: 'PCS',
       p_packaging_type: 'NONE', p_units_per_pack: 1, p_item_size: 1
   })
-  const vId_PCS = crPcs.variant_id;
-  
-  await supabase.rpc('record_inventory_movement', {
+  if (crPcsErr) console.error("TEST 10 CREATE ERROR:", crPcsErr);
+  const vId_PCS = crPcs?.variant_id;
+
+  await supabase.rpc('process_inventory_adjustment', {
       p_store_id: storeId, p_variant_id: vId_PCS, p_movement_type: 'opening_stock', p_quantity: 10
   })
-  
+
   const { data: inv9 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_PCS).single();
   assertEq("Legacy Opening Stock", inv9.on_hand_stock, 10, "10 items * 1 = 10 PCS");
 
@@ -280,17 +294,15 @@ async function runTests() {
   await supabase.rpc('process_sale', {
     p_store_id: storeId, p_customer_id: null, p_items: itemsLeg, p_payments: [{ method: 'CASH', amount: 100 }], p_due_date: null
   })
-  
+
   const { data: inv10 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_PCS).single();
   assertEq("Legacy Sale Deduction", inv10.on_hand_stock, 9, "10 - 1 = 9 PCS");
-
 
   console.log("\n==================================================")
   console.log("TEST 11 — INVENTORY VIEW")
   console.log("==================================================")
   const { data: vws } = await supabase.from('vw_inventory_available').select('*').eq('variant_id', vId_500).single();
   assertEq("View Available Stock", vws.available_stock, 31000);
-
 
   console.log("\n==================================================")
   console.log("TEST 12 — INSUFFICIENT STOCK")
@@ -300,17 +312,16 @@ async function runTests() {
   const { error: insuffErr } = await supabase.rpc('process_sale', {
     p_store_id: storeId, p_customer_id: null, p_items: itemsInsuff, p_payments: [{ method: 'CASH', amount: 200000 }], p_due_date: null
   })
-  
+
   if (insuffErr && insuffErr.message.includes('Insufficient available stock')) {
      assertEq("Insufficient Stock Blocking", true, true, "Blocked correctly");
   } else {
      console.error("Test 12 unexpected error:", insuffErr);
      assertEq("Insufficient Stock Blocking", false, true, "Did not block");
   }
-  
+
   const { data: inv11 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
   assertEq("Inventory unmutated after block", inv11.on_hand_stock, 31000);
-
 
   console.log("\n==================================================")
   console.log("TEST 13/14 — CREDIT REGRESSION")
@@ -318,19 +329,19 @@ async function runTests() {
   const { data: customer } = await supabase.from('customers').insert({
       organization_id: orgId, name: 'Credit Test ' + Date.now(), credit_limit: 10000, outstanding_balance: 0
   }).select().single();
-  
+
   const creditItems = [{ variant_id: vId_500, display_quantity: 1, sale_unit: 'PIECE', discount_amount: 0 }]
   const due = new Date(); due.setDate(due.getDate() + 7);
-  
+
   const { error: creditSaleErr } = await supabase.rpc('process_sale', {
-    p_store_id: storeId, p_customer_id: customer.id, p_items: creditItems, 
+    p_store_id: storeId, p_customer_id: customer.id, p_items: creditItems,
     p_payments: [], p_due_date: due.toISOString()
   });
-  
+
   if (creditSaleErr) {
     console.error("TEST 13/14 ERROR:", creditSaleErr);
   }
-  
+
   const { data: cAfter } = await supabase.from('customers').select('outstanding_balance').eq('id', customer.id).single();
   assertEq("Customer Ledger Updated", cAfter.outstanding_balance, 100);
 

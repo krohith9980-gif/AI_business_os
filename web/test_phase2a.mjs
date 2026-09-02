@@ -1,28 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
+import * as e2e from './e2e_guard.mjs'
 
-const SUPABASE_URL = 'https://lhtibverxjpcvmajzazv.supabase.co'
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxodGlidmVyeGpwY3ZtYWp6YXp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MjgxMTgsImV4cCI6MjEwMjMwNDExOH0.N_DwZogAi_wqfmZdjlFBeeV59fMkv46n2PoqJNoHOvM'
-
-
-  // STRONGER E2E SAFETY GUARD
-  const PROD_ORG_ID_G = 'ec19612a-e6e7-4145-8344-4c46d0e8e555';
-  const TEST_ORG_ID_G = process.env.TEST_ORG_ID;
-  const IS_TEST_ENV_G = process.env.TEST_ENV === 'true';
-  const URL_G = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  if (!IS_TEST_ENV_G) { console.error('CRITICAL SAFETY ABORT: TEST_ENV is not explicitly enabled.'); process.exit(1); }
-  if (!TEST_ORG_ID_G) { console.error('CRITICAL SAFETY ABORT: TEST_ORG_ID must be explicitly supplied.'); process.exit(1); }
-  if (TEST_ORG_ID_G === PROD_ORG_ID_G) { console.error('CRITICAL SAFETY ABORT: TEST_ORG_ID must NOT equal PRODUCTION_ORG_ID.'); process.exit(1); }
-  if (URL_G.includes('lhtibverxjpcvmajzazv')) { console.error('CRITICAL SAFETY ABORT: Production Supabase URL detected.'); process.exit(1); }
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+const supabase = createClient(e2e.SUPABASE_URL, e2e.SUPABASE_KEY)
 
 async function runTests() {
   console.log("Starting Phase 2A Backend Verification...")
 
   // 1. Auth (using the test credentials from earlier or creating a new test user)
   const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
-    email: 'test@vyaparos.com',
-    password: 'password123'
+    email: 'krohith9980@gmail.com',
+    password: 'Rohith89@@'
   })
 
   if (authErr) {
@@ -62,23 +49,28 @@ async function runTests() {
       organization_id: orgId,
       product_id: product.id,
       sku: 'P2A-' + Date.now(),
-      name: 'Base Pack',
       unit_of_measure: 'PIECE',
+      item_size: 1,
       packaging_type: 'BOX',
       units_per_pack: 10,
+      purchase_packaging_type: 'BOX',
+      purchase_units_per_pack: 10,
       purchase_cost: 50,
       selling_price: 100 // 100 per piece = 1000 per box
     }).select().single()
 
   // Add inventory
-  await supabase
-    .from('inventory')
-    .insert({
-      organization_id: orgId,
-      store_id: storeId,
-      variant_id: variant.id,
-      quantity: 100 // 100 base units = 10 boxes
-    })
+  const { error: invErr } = await supabase.rpc('process_inventory_adjustment', {
+    p_store_id: storeId,
+    p_variant_id: variant.id,
+    p_movement_type: 'opening_stock',
+    p_quantity: 100 // 100 base units = 10 boxes
+  })
+
+  if (invErr) {
+    console.error("Failed to inject opening stock:", invErr)
+    return
+  }
 
   // Create a test customer with 10k credit limit
   const { data: customer } = await supabase
@@ -103,12 +95,10 @@ async function runTests() {
 
   // Sell 2 Boxes + 5 Pieces = 25 pieces = ₹2500
   const items = [
-    { variant_id: variant.id, display_quantity: 2, sale_unit: 'PACK', discount_amount: 0 },
-    { variant_id: variant.id, display_quantity: 5, sale_unit: 'BASE', discount_amount: 0 }
+    { variant_id: variant.id, display_quantity: 2, sale_unit: 'BOX', discount_amount: 0 },
+    { variant_id: variant.id, display_quantity: 5, sale_unit: 'PIECE', discount_amount: 0 }
   ]
-  const payments = [
-    { method: 'CREDIT', amount: 2500 }
-  ]
+  const payments = []
 
   const { data: saleRes, error: saleErr } = await supabase.rpc('process_sale', {
     p_store_id: storeId,
@@ -131,32 +121,24 @@ async function runTests() {
   const { data: ledger } = await supabase.from('customer_ledger').select('*').eq('customer_id', customer.id)
   console.log(`✓ Ledger contains ${ledger.length} entries. Latest balance: ₹${ledger[0].balance_after}`)
 
-  const { data: inv } = await supabase.from('inventory').select('quantity').eq('variant_id', variant.id).single()
-  console.log(`✓ Inventory remaining: ${inv.quantity} (Expected 75, since 100 - 25)`)
+  const { data: inv } = await supabase.from('inventory_balances').select('on_hand_stock').eq('store_id', storeId).eq('variant_id', variant.id).single()
+  console.log(`✓ Inventory remaining: ${inv.on_hand_stock} (Expected 75, since 100 - 25)`)
 
   // ----------------------------------------------------------------
   // D. PARTIAL PAYMENT RESULT
   // ----------------------------------------------------------------
   console.log("\n--- Executing Partial Payment (₹500) ---")
-  const { data: payRes, error: payErr } = await supabase.from('payments').insert({
-    organization_id: orgId,
-    customer_id: customer.id,
-    amount: 500,
-    payment_method: 'CASH',
-    payment_type: 'CUSTOMER_COLLECTION'
-  })
-  
-  if (payErr) console.error("Payment insert failed", payErr)
-  
-  await supabase.from('customer_ledger').insert({
-    organization_id: orgId,
-    customer_id: customer.id,
-    transaction_type: 'PAYMENT',
-    amount: -500,
-    balance_after: updatedCustomer.outstanding_balance - 500
+  const { error: payErr } = await supabase.rpc('record_customer_payment', {
+    p_store_id: storeId,
+    p_customer_id: customer.id,
+    p_amount: 500,
+    p_method: 'CASH'
   })
 
-  await supabase.from('customers').update({ outstanding_balance: updatedCustomer.outstanding_balance - 500 }).eq('id', customer.id)
+  if (payErr) {
+    console.error("Payment insert failed:", payErr)
+    return
+  }
 
   const { data: custAfterPay } = await supabase.from('customers').select('outstanding_balance').eq('id', customer.id).single()
   console.log(`✓ Outstanding after payment: ₹${custAfterPay.outstanding_balance} (Expected 2000)`)
@@ -165,8 +147,8 @@ async function runTests() {
   // E. CREDIT LIMIT REJECTION TEST
   // ----------------------------------------------------------------
   console.log("\n--- Executing Credit Limit Test (Attempting 10k sale) ---")
-  const failItems = [{ variant_id: variant.id, display_quantity: 10, sale_unit: 'PACK', discount_amount: 0 }] // 10 boxes = 100 pieces = 10,000
-  const failPayments = [{ method: 'CREDIT', amount: 10000 }]
+  const failItems = [{ variant_id: variant.id, display_quantity: 10, sale_unit: 'BOX', discount_amount: 0 }] // 10 boxes = 100 pieces = 10,000
+  const failPayments = []
   
   const { error: limitErr } = await supabase.rpc('process_sale', {
     p_store_id: storeId,
@@ -176,7 +158,7 @@ async function runTests() {
     p_due_date: new Date().toISOString()
   })
 
-  if (limitErr && limitErr.message.includes('Credit limit exceeded')) {
+  if (limitErr && limitErr.message.includes('customer credit limit')) {
     console.log("✓ SUCCESS: Transaction correctly blocked by RPC with message:", limitErr.message)
   } else {
     console.log("❌ FAILED: Transaction was not blocked or failed with wrong error:", limitErr)

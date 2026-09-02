@@ -1,42 +1,30 @@
 import { createClient } from '@supabase/supabase-js';
-import fs from 'fs';
+import * as e2e from './e2e_guard.mjs';
+
 import { execSync } from 'child_process';
-
-const envFile = fs.readFileSync('.env.local', 'utf8');
-const env = envFile.split('\n').reduce((acc, line) => {
-  const [key, value] = line.replace(/\r/g, '').split('=');
-  if (key && value) acc[key.trim()] = value.trim();
-  return acc;
-}, {});
-
 
 if (process.env.TEST_ENV !== 'true') {
   console.error("ABORT: TEST_ENV is not 'true'. Refusing to run E2E test against potentially live database.");
   process.exit(1);
 }
-const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+const supabase = createClient(e2e.SUPABASE_URL, e2e.SUPABASE_KEY);
+const adminSupabase = createClient(e2e.SUPABASE_URL, e2e.SUPABASE_KEY);
 
 async function test() {
   const email = 'e2e-test-' + Date.now() + '@gmail.com';
   console.log('1. Registering:', email);
   
-  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+  const { data: signUpData, error: signUpError } = await adminSupabase.auth.admin.createUser({
     email,
     password: 'password123',
-    options: { data: { full_name: 'E2E Test User' } }
+    email_confirm: true,
+    user_metadata: { full_name: 'E2E Test User' }
   });
   
   if (signUpError) {
-    if (signUpError.message === 'email rate limit exceeded') {
-      console.log('Rate limit exceeded. Skipping this test step, but the fix is verified in code.');
-      return;
-    }
     console.error('SignUp Error:', signUpError);
     return;
   }
-  
-  console.log('2. Manually confirming email...');
-  execSync(`npx supabase db query --linked "UPDATE auth.users SET email_confirmed_at = now() WHERE email = '${email}';"`);
 
   console.log('3. Authenticating...');
   const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
@@ -44,7 +32,6 @@ async function test() {
     password: 'password123'
   });
 
-  
   // STRONGER E2E SAFETY GUARD
   const PROD_ORG_ID = 'ec19612a-e6e7-4145-8344-4c46d0e8e555';
   const TEST_ORG_ID = process.env.TEST_ORG_ID;
@@ -71,8 +58,6 @@ async function test() {
   // Ensure we don't automatically select the first organization
   const orgId = TEST_ORG_ID;
 
-
-  
   if (loginError) {
     console.error('Login Error:', loginError);
     return;
@@ -84,7 +69,7 @@ async function test() {
   await new Promise(r => setTimeout(r, 1000));
   
   console.log('4. Testing /setup RPC...');
-  const { data: orgId, error: setupError } = await supabase.rpc('create_organization_and_store', {
+  const { data: setupOrgId, error: setupError } = await supabase.rpc('create_organization_and_store', {
     p_org_name: 'Test Org',
     p_store_name: 'Test Store',
     p_business_type: 'Fertilizer / Agro Input',

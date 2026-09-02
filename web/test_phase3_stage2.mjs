@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import * as e2e from './e2e_guard.mjs';
 
 function convertBaseToPackages(recommendedBaseUnits, itemSize, unitsPerPack) {
   const safeItemSize = itemSize > 0 ? itemSize : 1;
@@ -8,15 +9,7 @@ function convertBaseToPackages(recommendedBaseUnits, itemSize, unitsPerPack) {
   return { physicalItems, purchasePackages };
 }
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lhtibverxjpcvmajzazv.supabase.co';
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxodGlidmVyeGpwY3ZtYWp6YXp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MjgxMTgsImV4cCI6MjEwMjMwNDExOH0.N_DwZogAi_wqfmZdjlFBeeV59fMkv46n2PoqJNoHOvM';
-
-
-if (process.env.TEST_ENV !== 'true') {
-  console.error("ABORT: TEST_ENV is not 'true'. Refusing to run E2E test against potentially live database.");
-  process.exit(1);
-}
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(e2e.SUPABASE_URL, e2e.SUPABASE_KEY);
 
 let passCount = 0;
 let failCount = 0;
@@ -41,7 +34,6 @@ async function runTests() {
     password: 'Rohith89@@'
   });
 
-  
   // STRONGER E2E SAFETY GUARD
   const PROD_ORG_ID = 'ec19612a-e6e7-4145-8344-4c46d0e8e555';
   const TEST_ORG_ID = process.env.TEST_ORG_ID;
@@ -68,7 +60,6 @@ async function runTests() {
   // Ensure we don't automatically select the first organization
   const orgId = TEST_ORG_ID;
 
-
   if (loginError) {
     console.error('Login Error:', loginError);
     return;
@@ -89,7 +80,7 @@ async function runTests() {
   assert(errB && errB.message.includes('Unauthorized'), "RLS-B", "Unauthorized", errB?.message || 'Success', "Org A cannot read Org B dashboard");
   
   // Test anonymous
-  const anonClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const anonClient = createClient(e2e.SUPABASE_URL, e2e.SUPABASE_KEY);
   const { data: anonDash, error: anonErr } = await anonClient.rpc('get_intelligence_dashboard', { p_org_id: orgA });
   assert(anonErr && anonErr.message.includes('Unauthorized'), "RLS-C", "Unauthorized", anonErr?.message || 'Success', "Anonymous users cannot read intelligence");
 

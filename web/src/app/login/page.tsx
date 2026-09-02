@@ -90,9 +90,20 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <div className="text-center text-sm">
+          <div className="text-center text-sm flex flex-col space-y-3 mt-4">
             <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
               Don&apos;t have an account? Create one
+            </Link>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or</span>
+              </div>
+            </div>
+            <Link href="/login-worker" className="font-medium text-indigo-600 hover:text-indigo-500">
+              Login as a Worker / Staff (Mobile OTP)
             </Link>
           </div>
         </form>
