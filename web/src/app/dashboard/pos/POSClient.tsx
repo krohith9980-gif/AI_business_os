@@ -426,9 +426,7 @@ export default function POSClient({
                         {variant.productName}
                       </span>
                       <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ml-2 ${stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {stock >= 1000 && variant.unit_of_measure === 'ML' ? `${stock / 1000} L` 
-                         : stock >= 1000 && variant.unit_of_measure === 'G' ? `${stock / 1000} KG` 
-                         : `${stock} ${variant.unit_of_measure}`}
+                        {stock}
                       </span>
                     </div>
                     <span className="text-sm text-gray-500 truncate w-full" title={variant.variantName}>

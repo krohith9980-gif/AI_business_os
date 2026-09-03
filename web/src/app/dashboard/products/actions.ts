@@ -83,20 +83,26 @@ export async function addProduct(formData: FormData) {
         return { error: 'Invalid selling price' }
     }
 
-    // 2. Call the RPC to insert the product and variant atomically
-    const { data, error: rpcError } = await supabase.rpc('create_product_with_variant', {
+    // 2. Call the atomic RPC to insert the product, variant, and initialize inventory
+    if (!selectedStoreId) {
+      return { error: 'Store selection is required' }
+    }
+
+    const { data, error: rpcError } = await supabase.rpc('create_product_with_opening_stock', {
         p_organization_id: organization_id,
+        p_store_id: selectedStoreId,
         p_name: name,
         p_sku: sku,
         p_purchase_cost: purchaseCost,
         p_selling_price: sellingPrice,
+        p_opening_stock_packages: openingStockInput,
         p_description: description,
         p_category_id: category_id,
         p_image_url: imageUrl,
         p_barcode: barcode,
         p_attributes: attributes,
         p_tracking_mode: trackingMode,
-        p_variant_image_url: null, // Assuming same image for MVP
+        p_variant_image_url: null,
         p_is_active: true,
         p_unit_of_measure: unitOfMeasure,
         p_packaging_type: packagingType,
@@ -105,30 +111,8 @@ export async function addProduct(formData: FormData) {
     })
 
     if (rpcError) {
-      console.error('RPC Error creating product:', rpcError)
+      console.error('RPC Error creating product with opening stock:', rpcError)
       return { error: rpcError.message || 'Failed to create product. Check SKU/Barcode uniqueness.' }
-    }
-
-    // 3. Initialize inventory for the selected store if opening stock is provided
-    if (selectedStoreId && openingStockInput > 0 && data?.variant_id) {
-      const baseQuantity = Math.floor(openingStockInput * (packagingType !== 'NONE' ? unitsPerPack : 1))
-      
-      if (baseQuantity > 0) {
-        const { error: invError } = await supabase.rpc('record_inventory_movement', {
-          p_store_id: selectedStoreId,
-          p_variant_id: data.variant_id,
-          p_movement_type: 'opening_stock',
-          p_quantity: baseQuantity,
-          p_reference_id: null,
-          p_notes: 'Initial opening stock',
-          p_disposition: 'RESELLABLE'
-        })
-        
-        if (invError) {
-          console.error('Error initializing inventory:', invError)
-          return { error: `Product created, but inventory failed: ${invError.message}` }
-        }
-      }
     }
 
     revalidatePath('/dashboard/products')

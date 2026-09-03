@@ -135,7 +135,7 @@ async function runTests() {
     console.error("Fetch Inv1 Error:", invErr1);
   }
 
-  assertEq("Opening Stock Balance", inv1?.on_hand_stock, 25000, "50 items * 500 ML");
+  assertEq("Opening Stock Balance", inv1?.on_hand_stock, 50, "50 items");
 
   console.log("\n==================================================")
   console.log("TEST 3 — PURCHASE RECEIPT (via Adjustment)")
@@ -149,7 +149,7 @@ async function runTests() {
   })
 
   const { data: inv2 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
-  assertEq("After Purchase Stock", inv2.on_hand_stock, 35000, "25000 + (20 * 500)");
+  assertEq("After Purchase Stock", inv2.on_hand_stock, 70, "50 + 20");
 
   console.log("\n==================================================")
   console.log("TEST 4 — POS PIECE SALE")
@@ -163,7 +163,7 @@ async function runTests() {
   if (s1Err) console.error("TEST 4 ERROR:", s1Err);
 
   const { data: inv3 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
-  assertEq("After Piece Sale Stock", inv3.on_hand_stock, 34500, "35000 - 500");
+  assertEq("After Piece Sale Stock", inv3.on_hand_stock, 69, "70 - 1");
 
   const { data: saleItems1 } = await supabase.from('sale_items').select('quantity, total_price').eq('sale_id', sale1Id).single();
   assertEq("Sale Item Quantity", saleItems1.quantity, 1);
@@ -180,7 +180,7 @@ async function runTests() {
   })
 
   const { data: inv4 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
-  assertEq("After Box Sale Stock", inv4.on_hand_stock, 29500, "34500 - 5000");
+  assertEq("After Box Sale Stock", inv4.on_hand_stock, 59, "69 - 10");
 
   console.log("\n==================================================")
   console.log("TEST 6 — CUSTOMER RETURN (via Adjustment)")
@@ -191,7 +191,7 @@ async function runTests() {
   })
 
   const { data: inv5 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
-  assertEq("After Customer Return Stock", inv5.on_hand_stock, 30000, "29500 + 500");
+  assertEq("After Customer Return Stock", inv5.on_hand_stock, 60, "59 + 1");
 
   console.log("\n==================================================")
   console.log("TEST 7 — MANUAL ADJUSTMENT")
@@ -202,7 +202,7 @@ async function runTests() {
   })
 
   const { data: inv6 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
-  assertEq("After Adjustment Stock", inv6.on_hand_stock, 31000, "30000 + 1000");
+  assertEq("After Adjustment Stock", inv6.on_hand_stock, 62, "60 + 2");
 
   console.log("\n==================================================")
   console.log("TEST 7b — CASHIER UNAUTHORIZED ADJUSTMENT")
@@ -249,7 +249,7 @@ async function runTests() {
   })
 
   const { data: inv7 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_1_5L).single();
-  assertEq("Decimal Inventory Balance", inv7?.on_hand_stock, 30, "20 items * 1.5 L = 30 L");
+  assertEq("Decimal Inventory Balance", inv7?.on_hand_stock, 20, "20 items");
   // verify exact NUMERIC is returned (might be "30.0000")
   console.log(`   (Raw database value string: "${inv7?.on_hand_stock}")`);
 
@@ -270,7 +270,7 @@ async function runTests() {
   })
 
   const { data: inv8 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_250G).single();
-  assertEq("250G Inventory Balance", inv8?.on_hand_stock, 5000, "20 items * 250 = 5000 G");
+  assertEq("250G Inventory Balance", inv8?.on_hand_stock, 20, "20 items");
 
   console.log("\n==================================================")
   console.log("TEST 10 — LEGACY PCS PRODUCT")
@@ -302,7 +302,7 @@ async function runTests() {
   console.log("TEST 11 — INVENTORY VIEW")
   console.log("==================================================")
   const { data: vws } = await supabase.from('vw_inventory_available').select('*').eq('variant_id', vId_500).single();
-  assertEq("View Available Stock", vws.available_stock, 31000);
+  assertEq("View Available Stock", vws.available_stock, 62);
 
   console.log("\n==================================================")
   console.log("TEST 12 — INSUFFICIENT STOCK")
@@ -321,7 +321,7 @@ async function runTests() {
   }
 
   const { data: inv11 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
-  assertEq("Inventory unmutated after block", inv11.on_hand_stock, 31000);
+  assertEq("Inventory unmutated after block", inv11.on_hand_stock, 62);
 
   console.log("\n==================================================")
   console.log("TEST 13/14 — CREDIT REGRESSION")
@@ -346,7 +346,7 @@ async function runTests() {
   assertEq("Customer Ledger Updated", cAfter.outstanding_balance, 100);
 
   const { data: inv12 } = await supabase.from('inventory_balances').select('on_hand_stock').eq('variant_id', vId_500).single();
-  assertEq("Credit Sale Inventory Deduction", inv12.on_hand_stock, 30500, "31000 - 500");
+  assertEq("Credit Sale Inventory Deduction", inv12.on_hand_stock, 61, "62 - 1");
 
   console.log(`\nTests Completed: ${passed} Passed, ${failed} Failed`);
 }
