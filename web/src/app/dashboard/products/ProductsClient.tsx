@@ -41,13 +41,15 @@ export default function ProductsClient({
   categories,
   stores,
   inventory,
-  searchQuery 
+  searchQuery,
+  role 
 }: { 
   initialProducts: Product[]
   categories: Category[]
   stores: Store[]
   inventory: Inventory[]
   searchQuery: string 
+  role?: string
 }) {
   const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -120,12 +122,14 @@ export default function ProductsClient({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
-        >
-          Add Product
-        </button>
+        {(role === 'OWNER' || role === 'MANAGER') && (
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+          >
+            Add Product
+          </button>
+        )}
       </div>
 
       <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
@@ -217,12 +221,6 @@ export default function ProductsClient({
             </div>
             
             <form onSubmit={handleFormSubmit} className="p-6 overflow-y-auto max-h-[75vh]">
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md">
-                  {error}
-                </div>
-              )}
-              
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700">Product Name *</label>
@@ -433,13 +431,20 @@ export default function ProductsClient({
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-gray-200">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                  Cancel
-                </button>
-                <button type="submit" disabled={isPending} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-indigo-400">
-                  {isPending ? 'Saving...' : 'Save Product'}
-                </button>
+              <div className="mt-6 flex flex-col gap-3 pt-4 border-t border-gray-200">
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md animate-pulse">
+                    {error}
+                  </div>
+                )}
+                <div className="flex justify-end gap-3">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={isPending} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-indigo-400">
+                    {isPending ? 'Saving...' : 'Save Product'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

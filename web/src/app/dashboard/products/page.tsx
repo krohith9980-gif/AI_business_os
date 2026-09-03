@@ -150,6 +150,7 @@ export default async function ProductsPage({
       stores={stores || []}
       inventory={inventory}
       searchQuery={query}
+      role={role}
     />
   )
 }
