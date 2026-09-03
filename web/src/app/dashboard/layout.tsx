@@ -21,6 +21,7 @@ const navigation = [
   { name: 'Purchases', href: '/dashboard/purchases' },
   { name: 'Customers', href: '/dashboard/customers' },
   { name: 'Suppliers', href: '/dashboard/suppliers' },
+  { name: 'Workers', href: '/dashboard/workers' },
   { name: 'Reports', href: '/dashboard/reports' },
   { name: 'Settings', href: '/dashboard/settings' },
 ]
@@ -42,7 +43,7 @@ export default async function DashboardLayout({
   // Check for active organization membership
   const { data: memberships } = await supabase
     .from('organization_members')
-    .select('id')
+    .select('id, role')
     .eq('profile_id', user.id)
     .eq('is_active', true)
     .limit(1)
@@ -50,6 +51,14 @@ export default async function DashboardLayout({
   if (!memberships || memberships.length === 0) {
     redirect('/setup')
   }
+
+  const userRole = memberships[0].role
+  const isOwner = userRole === 'OWNER'
+
+  const filteredNavigation = navigation.filter(item => {
+    if (item.name === 'Workers' && !isOwner) return false
+    return true
+  })
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
@@ -59,7 +68,7 @@ export default async function DashboardLayout({
           <h1 className="text-xl font-bold">AI Business OS</h1>
         </div>
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto hidden md:block">
-          {navigation.map((item) => (
+          {filteredNavigation.map((item) => (
             <Link
               key={item.name}
               href={item.href}
@@ -71,7 +80,7 @@ export default async function DashboardLayout({
         </nav>
         {/* Mobile Nav (horizontal scroll or simplified) */}
         <nav className="flex md:hidden overflow-x-auto p-2 space-x-2 border-b border-gray-800">
-           {navigation.map((item) => (
+           {filteredNavigation.map((item) => (
             <Link
               key={item.name}
               href={item.href}
