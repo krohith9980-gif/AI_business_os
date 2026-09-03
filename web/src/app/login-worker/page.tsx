@@ -89,14 +89,12 @@ export default function WorkerLoginPage() {
 
     // Route based on role
     if (orgMember.role === 'CASHIER') {
-      router.push('/dashboard/pos')
+      window.location.href = '/dashboard/pos'
     } else if (orgMember.role === 'MANAGER') {
-      router.push('/dashboard')
+      window.location.href = '/dashboard'
     } else {
-      router.push('/dashboard') // Owner fallback
+      window.location.href = '/dashboard' // Owner fallback
     }
-
-    router.refresh()
   }
 
   return (
@@ -147,7 +145,7 @@ export default function WorkerLoginPage() {
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => router.push('/login')}
+                onClick={() => window.location.href = '/login'}
                 className="text-sm font-medium text-gray-600 hover:text-gray-900"
               >
                 Back to main login
