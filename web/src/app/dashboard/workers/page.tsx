@@ -44,8 +44,10 @@ export default async function WorkersPage() {
       profile_id,
       role,
       is_active,
-      profiles ( full_name ),
-      user_stores ( store_id, is_active, stores ( name ) )
+      profiles ( 
+        full_name,
+        user_stores ( store_id, is_active, stores ( name ) ) 
+      )
     `)
     .eq('organization_id', orgMember.organization_id)
 
@@ -70,7 +72,7 @@ export default async function WorkersPage() {
     for (const m of members) {
       if (m.profile_id === user.id) continue; // Skip self
 
-      const activeUserStore = m.user_stores?.find((us: any) => us.is_active)
+      const activeUserStore = (m.profiles as any)?.user_stores?.find((us: any) => us.is_active)
 
       unifiedList.push({
         id: m.profile_id,
