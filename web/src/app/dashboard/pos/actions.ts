@@ -191,6 +191,21 @@ export async function fetchReceiptData(saleId: string) {
     return { error: saleError?.message || 'Sale not found' }
   }
   
+  // Fetch cashier role from organization_members
+  if (saleData.cashier_id && saleData.organization_id) {
+    const { data: memberData } = await supabase
+      .from('organization_members')
+      .select('role')
+      .eq('profile_id', saleData.cashier_id)
+      .eq('organization_id', saleData.organization_id)
+      .single()
+      
+    if (memberData && memberData.role) {
+      if (!saleData.profiles) saleData.profiles = {}
+      saleData.profiles.role = memberData.role
+    }
+  }
+  
   // Safe mapping is done on the client side since we need mapSaleToReceiptData.
   // Actually, let's just return the raw saleData to the client and let the client map it.
   return { success: true, saleData }

@@ -57,12 +57,18 @@ export function mapSaleToReceiptData(saleData: any): ReceiptData {
   const balanceDue = Math.max(0, grandTotal - amountPaid)
 
   // Cashier role logic
-  let cashierRole = 'Staff'
+  let rawRole = ''
   if (saleData.profiles?.role) {
-    cashierRole = saleData.profiles.role
+    rawRole = saleData.profiles.role
   } else if (saleData.cashier?.role) {
-    cashierRole = saleData.cashier.role
+    rawRole = saleData.cashier.role
   }
+
+  let cashierRole = 'Cashier'
+  if (rawRole === 'OWNER') cashierRole = 'Owner'
+  else if (rawRole === 'MANAGER') cashierRole = 'Manager'
+  else if (rawRole === 'CASHIER') cashierRole = 'Cashier'
+  else if (rawRole) cashierRole = rawRole
 
   // Handle nested objects safely
   const storeName = saleData.stores?.name || saleData.store?.name || 'Unknown Store'
