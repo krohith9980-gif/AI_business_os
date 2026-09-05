@@ -5,6 +5,7 @@ import { formatCurrency } from '@/utils/currency'
 import { ReceiptData } from '../pos/receipt/types'
 import { mapSaleToReceiptData } from '../pos/receipt/mapper'
 import { fetchReceiptData } from '../pos/actions'
+import { PrintAdapter } from '../pos/receipt/PrintAdapter'
 
 export default function ReceiptModal({ saleId, onClose }: { saleId: string; onClose: () => void }) {
   const [data, setData] = useState<ReceiptData | null>(null)
@@ -33,12 +34,53 @@ export default function ReceiptModal({ saleId, onClose }: { saleId: string; onCl
   }, [saleId])
 
   const handlePrint = () => {
-    window.print()
+    PrintAdapter.printA4()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm print:bg-white print:p-0">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl overflow-hidden print:shadow-none print:max-w-full">
+    <div id="a4-modal-wrapper" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm print:bg-white print:p-0">
+      <style>{`
+        @media print {
+          /* Hide global app layout components */
+          body.print-a4 aside,
+          body.print-a4 header {
+            display: none !important;
+          }
+          body.print-a4 main {
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
+          /* Hide Thermal receipt explicitly */
+          body.print-a4 #thermal-receipt-wrapper {
+            display: none !important;
+          }
+          
+          /* Also hide standard POSClient print:hidden elements (just to be safe if they use visibility) */
+          body.print-a4 .print\\:hidden {
+            display: none !important;
+          }
+
+          /* Normalize the A4 modal wrapper to fill page */
+          body.print-a4 #a4-modal-wrapper {
+            position: static !important;
+            display: block !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          /* Expand the receipt to 100% printable width */
+          body.print-a4 #a4-receipt {
+            width: 100% !important;
+            max-width: none !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+          }
+        }
+      `}</style>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl overflow-hidden print:shadow-none print:max-w-full" id="a4-receipt">
         
         {/* Header - Hidden on print */}
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 print:hidden">

@@ -7,23 +7,32 @@ export default function ThermalReceipt({ data }: { data: ReceiptData }) {
     <div className="w-[80mm] text-black bg-white font-sans text-[12px] leading-tight print:w-[80mm] print:m-0 print:p-0 mx-auto" id="thermal-receipt">
       <style>{`
         @media print {
-          @page {
-            size: 80mm auto;
-            margin: 0;
+          /* Hide global app layout components */
+          body.print-thermal aside,
+          body.print-thermal header {
+            display: none !important;
           }
-          body * {
-            visibility: hidden;
+          body.print-thermal main {
+            padding: 0 !important;
+            margin: 0 !important;
           }
-          #thermal-receipt,
-          #thermal-receipt * {
-            visibility: visible;
+
+          /* Hide A4 receipt modal explicitly if it is open */
+          body.print-thermal #a4-modal-wrapper {
+            display: none !important;
           }
-          #thermal-receipt {
+          
+          /* Hide standard POSClient print:hidden elements */
+          body.print-thermal .print\\:hidden {
+            display: none !important;
+          }
+
+          /* Thermal receipt overrides */
+          body.print-thermal #thermal-receipt-wrapper {
             position: absolute;
             left: 0;
             top: 0;
             width: 80mm !important;
-            padding: 2mm !important;
           }
         }
         

@@ -844,7 +844,7 @@ export default function POSClient({
       )}
       
       {/* Hidden container for print-only ThermalReceipt */}
-      <div className="hidden print:block">
+      <div id="thermal-receipt-wrapper" className="hidden print:block">
         {receiptData && <ThermalReceipt data={receiptData} />}
       </div>
     </div>
