@@ -3,6 +3,67 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+export async function checkDuplicateProduct(barcode: string | null, sku: string | null) {
+  try {
+    const supabase = await createClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return { error: 'Unauthorized: Not authenticated' }
+    }
+
+    const { data: memberships, error: memError } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('profile_id', user.id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true })
+      .limit(1)
+
+    if (memError || !memberships || memberships.length === 0) {
+      return { error: 'No active organization found' }
+    }
+
+    const organization_id = memberships[0].organization_id
+
+    const orConditions = []
+    if (barcode && barcode.trim() !== '') orConditions.push(`barcode.eq.${barcode.trim()}`)
+    if (sku && sku.trim() !== '') orConditions.push(`sku.eq.${sku.trim()}`)
+    
+    if (orConditions.length === 0) return { duplicate: false }
+
+    const { data, error } = await supabase
+      .from('product_variants')
+      .select('id, sku, barcode, product:products(name)')
+      .eq('organization_id', organization_id)
+      .or(orConditions.join(','))
+    
+    if (error) {
+        console.error('Error checking duplicates:', error)
+        return { error: 'Failed to check duplicates server-side' }
+    }
+
+    if (data && data.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const first = data[0] as any
+        return {
+            duplicate: true,
+            product: {
+                id: first.id,
+                name: first.product?.name || 'Unknown Product',
+                sku: first.sku,
+                barcode: first.barcode
+            }
+        }
+    }
+
+    return { duplicate: false }
+  } catch (err: unknown) {
+    console.error('Duplicate Check Exception:', err)
+    return { error: 'An unexpected error occurred during duplicate check' }
+  }
+}
+
 export async function addProduct(formData: FormData) {
   try {
     const supabase = await createClient()
@@ -71,16 +132,36 @@ export async function addProduct(formData: FormData) {
         }
     }
 
-    if (!name || !sku) {
+    if (!name || name.trim() === '' || !sku || sku.trim() === '') {
       return { error: 'Name and SKU are required' }
     }
 
-    if (isNaN(purchaseCost) || purchaseCost < 0) {
+    // String validation boundaries
+    if (name.length > 255) return { error: 'Product name is too long (max 255 chars)' }
+    if (sku.length > 100) return { error: 'SKU is too long (max 100 chars)' }
+    if (barcode && barcode.length > 100) return { error: 'Barcode is too long (max 100 chars)' }
+    if (description && description.length > 2000) return { error: 'Description is too long' }
+
+    // Numeric boundary & sanity checks
+    if (isNaN(purchaseCost) || !isFinite(purchaseCost) || purchaseCost < 0) {
         return { error: 'Invalid purchase cost' }
     }
-
-    if (isNaN(sellingPrice) || sellingPrice < 0) {
+    if (isNaN(sellingPrice) || !isFinite(sellingPrice) || sellingPrice < 0) {
         return { error: 'Invalid selling price' }
+    }
+    if (purchaseCost > 10000000) return { error: 'Purchase cost exceeds maximum allowed value (10,000,000)' }
+    if (sellingPrice > 10000000) return { error: 'Selling price exceeds maximum allowed value (10,000,000)' }
+    
+    if (isNaN(openingStockInput) || !isFinite(openingStockInput) || openingStockInput < 0) {
+        return { error: 'Invalid opening stock value' }
+    }
+    if (openingStockInput > 100000) return { error: 'Opening stock cannot exceed 100,000' }
+    
+    if (isNaN(unitsPerPack) || !isFinite(unitsPerPack) || unitsPerPack < 1 || unitsPerPack > 10000) {
+        return { error: 'Units per pack must be between 1 and 10,000' }
+    }
+    if (isNaN(itemSize) || !isFinite(itemSize) || itemSize <= 0 || itemSize > 100000) {
+        return { error: 'Item size must be greater than 0 and reasonable (max 100,000)' }
     }
 
     // 2. Call the atomic RPC to insert the product, variant, and initialize inventory

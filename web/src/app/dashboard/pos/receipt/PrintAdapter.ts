@@ -3,6 +3,10 @@
  */
 
 const injectPageStyle = (cssText: string) => {
+  const existing = document.getElementById('print-page-style')
+  if (existing && existing.parentNode) {
+    existing.parentNode.removeChild(existing)
+  }
   const style = document.createElement('style')
   style.id = 'print-page-style'
   style.textContent = cssText
@@ -22,6 +26,7 @@ export const PrintAdapter = {
    */
   printThermal: (): Promise<void> => {
     return new Promise((resolve) => {
+      document.body.classList.remove('print-a4')
       const style = injectPageStyle('@page { size: 80mm auto; margin: 0; }')
       document.body.classList.add('print-thermal')
       
@@ -67,6 +72,7 @@ export const PrintAdapter = {
    */
   printA4: (): Promise<void> => {
     return new Promise((resolve) => {
+      document.body.classList.remove('print-thermal')
       const style = injectPageStyle('@page { size: A4; margin: 10mm; }')
       document.body.classList.add('print-a4')
       
