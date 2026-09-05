@@ -11,17 +11,19 @@ export default function ThermalReceipt({ data }: { data: ReceiptData }) {
             size: 80mm auto;
             margin: 0;
           }
-          body {
-            margin: 0;
-            padding: 0;
+          body * {
+            visibility: hidden;
+          }
+          #thermal-receipt,
+          #thermal-receipt * {
+            visibility: visible;
           }
           #thermal-receipt {
+            position: absolute;
+            left: 0;
+            top: 0;
             width: 80mm !important;
             padding: 2mm !important;
-          }
-          /* Hide everything else when printing this component */
-          body > *:not(#thermal-receipt) {
-            display: none !important;
           }
         }
       `}</style>
