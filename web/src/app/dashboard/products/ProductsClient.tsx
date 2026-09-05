@@ -165,37 +165,39 @@ export default function ProductsClient({
     setAiConfidenceInfo(null)
 
     try {
-      const reader = new FileReader()
-      reader.onloadend = async () => {
-        const base64Data = reader.result as string
-        setUploadedImage(base64Data)
-        
-        // Remove data URI prefix for API
-        const base64String = base64Data.split(',')[1]
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
 
-        const res = await fetch('/api/intelligence/scan-product', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64String, mimeType: file.type })
-        })
+      setUploadedImage(base64Data)
+      
+      // Remove data URI prefix for API
+      const base64String = base64Data.split(',')[1]
 
-        if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.error || 'Failed to scan image')
-        }
+      const res = await fetch('/api/intelligence/scan-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64String, mimeType: file.type })
+      })
 
-        const data = await res.json()
-        if (data.items && data.items.length > 0) {
-          if (data.documentType === 'invoice' && data.items.length > 1) {
-             setScannedItems(data.items)
-          } else {
-             handleSelectScannedItem(data.items[0])
-          }
-        } else {
-          throw new Error('No products detected in the image')
-        }
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to scan image')
       }
-      reader.readAsDataURL(file)
+
+      const data = await res.json()
+      if (data.items && data.items.length > 0) {
+        if (data.documentType === 'invoice' && data.items.length > 1) {
+           setScannedItems(data.items)
+        } else {
+           handleSelectScannedItem(data.items[0])
+        }
+      } else {
+        throw new Error('No products detected in the image')
+      }
     } catch (err: any) {
       setError(err.message || 'Scanning failed due to network or provider error. Please try again.')
     } finally {
@@ -237,8 +239,8 @@ export default function ProductsClient({
     if (item.productName) setName(item.productName)
     if (item.sku) setSku(item.sku)
     if (item.barcode) setBarcode(item.barcode)
-    if (item.purchaseCost !== null) setPurchaseCost(item.purchaseCost.toString())
-    if (item.mrp !== null) setSellingPrice(item.mrp.toString())
+    if (item.purchaseCost != null) setPurchaseCost(item.purchaseCost.toString())
+    if (item.mrp != null) setSellingPrice(item.mrp.toString())
     
     if (item.brand) setBrand(item.brand)
     if (item.manufacturer) setManufacturer(item.manufacturer)
