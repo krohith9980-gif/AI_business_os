@@ -326,7 +326,7 @@ export default function POSClient({
   }
 
   return (
-    <div className="h-full flex flex-col space-y-4">
+    <div className="h-full flex flex-col print:block print:h-auto">
       {/* Header Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <h1 className="text-2xl font-bold text-gray-900">Point of Sale</h1>
