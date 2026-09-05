@@ -4,7 +4,7 @@ import { formatCurrency } from '@/utils/currency'
 
 export default function ThermalReceipt({ data }: { data: ReceiptData }) {
   return (
-    <div className="w-[80mm] text-black bg-white font-mono text-[11px] leading-[1.2] print:w-[80mm] print:m-0 print:p-0 mx-auto" id="thermal-receipt">
+    <div className="w-[80mm] text-black bg-white font-sans text-[12px] leading-tight print:w-[80mm] print:m-0 print:p-0 mx-auto" id="thermal-receipt">
       <style>{`
         @media print {
           @page {
@@ -26,137 +26,159 @@ export default function ThermalReceipt({ data }: { data: ReceiptData }) {
             padding: 2mm !important;
           }
         }
+        
+        .receipt-section {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
       `}</style>
       
       {/* SHOP HEADER */}
-      <div className="text-center mb-3">
+      <div className="text-center mb-4 receipt-section">
         {data.logoUrl && (
-          <img src={data.logoUrl} alt="Logo" className="max-h-12 mx-auto mb-1 grayscale" />
+          <img src={data.logoUrl} alt="Logo" className="max-h-16 mx-auto mb-2 object-contain grayscale" />
         )}
-        <h1 className="text-[14px] font-bold uppercase">{data.shopName}</h1>
-        <h2 className="text-[12px] font-semibold">{data.storeName}</h2>
-        {data.address && <p>{data.address}</p>}
-        {data.phone && <p>Ph: {data.phone}</p>}
-        {data.email && <p>{data.email}</p>}
-        {data.gstin && <p>GSTIN: {data.gstin}</p>}
+        <h1 className="text-[18px] font-bold tracking-tight uppercase text-gray-900">{data.shopName}</h1>
+        <h2 className="text-[13px] font-semibold text-gray-800 mt-1">{data.storeName}</h2>
+        
+        <div className="mt-1 text-[11px] text-gray-600 space-y-0.5">
+          {data.address && <p>{data.address}</p>}
+          {data.phone && <p>Ph: {data.phone}</p>}
+          {data.email && <p>{data.email}</p>}
+          {data.gstin && <p className="font-semibold mt-1">GSTIN: {data.gstin}</p>}
+        </div>
       </div>
 
-      <div className="text-center border-t border-b border-black border-dashed py-1 mb-2">
-        <h3 className="text-[13px] font-bold uppercase">SALES BILL / INVOICE</h3>
+      {/* SALES INVOICE TITLE */}
+      <div className="text-center border-y border-gray-400 py-1.5 mb-3 receipt-section bg-gray-50">
+        <h3 className="text-[14px] font-bold tracking-wider uppercase text-gray-900">Sales Invoice</h3>
       </div>
 
-      <div className="mb-2">
-        {data.invoiceNumber ? (
-          <p className="font-bold text-[12px]">Bill No: {data.invoiceNumber}</p>
-        ) : (
-          <p className="font-bold text-[10px] break-all">Ref No: {data.saleId.split('-')[0]}</p>
-        )}
-        <p>Date: {data.date} {data.time}</p>
+      {/* BILL INFO */}
+      <div className="flex flex-col space-y-0.5 mb-3 text-[11px] receipt-section">
+        <div className="flex justify-between">
+          <span className="text-gray-600">Bill No:</span>
+          <span className="font-bold">{data.invoiceNumber || data.saleId.split('-')[0]}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-600">Date:</span>
+          <span className="font-medium">{data.date} {data.time}</span>
+        </div>
       </div>
 
-      <div className="border-t border-b border-black border-dashed py-1 mb-2">
-        <p className="font-bold">Customer Details:</p>
-        <p>Name: {data.customerName}</p>
-        {data.customerMobile && <p>Mobile: {data.customerMobile}</p>}
-        <div className="mt-1">
-          <p>Payment: {data.paymentMethod} [{data.paymentStatus}]</p>
-          <p>Cashier: {data.cashierName}</p>
+      {/* CUSTOMER & PAYMENT DETAILS */}
+      <div className="border-t border-gray-300 pt-2 mb-3 text-[11px] receipt-section">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className="text-[9px] text-gray-500 font-semibold uppercase mb-0.5">Customer</p>
+            <p className="font-bold">{data.customerName}</p>
+            {data.customerMobile && <p className="text-gray-700">{data.customerMobile}</p>}
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] text-gray-500 font-semibold uppercase mb-0.5">Payment</p>
+            <p className="font-bold">{data.paymentMethod}</p>
+            <p className="text-gray-700">[{data.paymentStatus}]</p>
+          </div>
+        </div>
+        <div className="mt-2 text-right flex justify-between">
+            <p className="text-[9px] text-gray-500 font-semibold uppercase">Cashier</p>
+            <p className="text-gray-700">
+              {data.cashierName} {data.cashierRole ? `(${data.cashierRole})` : ''}
+            </p>
         </div>
       </div>
 
       {/* ITEMS */}
-      <table className="w-full text-left mb-2 border-collapse">
-        <thead>
-          <tr className="border-b border-black">
-            <th className="font-semibold py-1">Item</th>
-            <th className="font-semibold py-1 text-right">Qty</th>
-            <th className="font-semibold py-1 text-right">Price</th>
-            <th className="font-semibold py-1 text-right">Amt</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.items.map((item) => (
-            <React.Fragment key={item.id}>
-              <tr>
-                <td colSpan={4} className="pt-1 font-semibold truncate max-w-[200px]">
-                  {item.serialNumber}. {item.productName}
+      <div className="mb-3">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="border-y border-gray-400 bg-gray-50">
+              <th className="font-semibold py-1.5 text-[11px] pl-1">Item</th>
+              <th className="font-semibold py-1.5 text-[11px] text-center w-10">Qty</th>
+              <th className="font-semibold py-1.5 text-[11px] text-right w-14">Rate</th>
+              <th className="font-semibold py-1.5 text-[11px] text-right pr-1 w-16">Amount</th>
+            </tr>
+          </thead>
+          <tbody className="align-top">
+            {data.items.map((item) => (
+              <tr key={item.id} className="border-b border-gray-100 last:border-b-0 receipt-section">
+                <td className="py-1.5 pl-1 pr-2">
+                  <div className="font-semibold text-[11px] text-gray-900 break-words leading-tight">
+                    {item.serialNumber}. {item.productName}
+                  </div>
+                  <div className="text-[9px] text-gray-500 mt-0.5 flex flex-wrap gap-x-2">
+                    {item.hsn && <span>HSN:{item.hsn}</span>}
+                    {item.sku && <span>SKU:{item.sku}</span>}
+                    {item.gstPercentage ? <span>GST:{item.gstPercentage}%</span> : null}
+                  </div>
+                </td>
+                <td className="py-1.5 text-center text-[11px] font-medium text-gray-800">
+                  {item.quantity}
+                </td>
+                <td className="py-1.5 text-right text-[11px] text-gray-700">
+                  {Number(item.unitPrice).toFixed(2)}
+                </td>
+                <td className="py-1.5 text-right font-semibold text-[11px] pr-1">
+                  {Number(item.lineTotal).toFixed(2)}
                 </td>
               </tr>
-              {(item.sku || item.hsn) && (
-                <tr>
-                  <td colSpan={4} className="text-[9px] text-gray-700">
-                    {item.hsn ? `HSN: ${item.hsn} ` : ''}{item.sku ? `SKU: ${item.sku}` : ''}
-                  </td>
-                </tr>
-              )}
-              <tr>
-                <td className="pb-1 pl-2 text-[9px]">
-                  {item.unit} {item.gstPercentage ? `(GST ${item.gstPercentage}%)` : ''}
-                </td>
-                <td className="pb-1 text-right">{item.quantity}</td>
-                <td className="pb-1 text-right">{Number(item.unitPrice).toFixed(2)}</td>
-                <td className="pb-1 text-right">{Number(item.lineTotal).toFixed(2)}</td>
-              </tr>
-            </React.Fragment>
-          ))}
-        </tbody>
-      </table>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {/* TOTALS */}
-      <div className="border-t border-black border-dashed pt-1 space-y-[2px]">
-        <div className="flex justify-between">
-          <span>Sub Total:</span>
+      <div className="border-t-[1.5px] border-black pt-2 space-y-1 receipt-section">
+        <div className="flex justify-between text-[11px] text-gray-700 px-1">
+          <span>Subtotal</span>
           <span>{Number(data.subtotal).toFixed(2)}</span>
         </div>
         {data.discount > 0 && (
-          <div className="flex justify-between">
-            <span>Discount:</span>
+          <div className="flex justify-between text-[11px] text-red-600 px-1">
+            <span>Discount</span>
             <span>-{Number(data.discount).toFixed(2)}</span>
           </div>
         )}
         {data.totalGST > 0 && (
-          <div className="flex justify-between">
-            <span>Total GST:</span>
+          <div className="flex justify-between text-[11px] text-gray-700 px-1">
+            <span>Tax (GST)</span>
             <span>{Number(data.totalGST).toFixed(2)}</span>
           </div>
         )}
-        <div className="flex justify-between font-bold text-[14px] border-t border-black pt-1 mt-1">
-          <span>GRAND TOTAL:</span>
+        
+        <div className="flex justify-between items-center font-bold text-[16px] border-y-[1.5px] border-black py-2 mt-2 px-1 bg-gray-50">
+          <span className="uppercase tracking-wide">Grand Total</span>
           <span>{formatCurrency(data.grandTotal)}</span>
         </div>
       </div>
 
-      <div className="text-[10px] mt-2 mb-2 italic">
+      <div className="text-[10px] mt-1 mb-4 italic text-gray-600 text-right px-1 receipt-section">
         {data.amountInWords}
       </div>
 
       {/* RETURN POLICY */}
-      <div className="mt-3 border border-black border-dashed p-1 text-center">
-        {data.returnPolicy ? (
-          <p className="text-[10px] italic">{data.returnPolicy}</p>
-        ) : (
-          <p className="text-[10px] italic">
-            All goods sold are not returnable.<br/>
-            Thank you for your business!
-          </p>
-        )}
+      <div className="mb-6 rounded border border-gray-300 p-2 text-center bg-gray-50 receipt-section">
+        <p className="text-[9.5px] text-gray-600 font-medium">
+          {data.returnPolicy || "All goods sold are subject to store return policy."}
+        </p>
       </div>
       
       {/* SIGNATURES */}
-      <div className="flex justify-between mt-8 px-1 text-[9px]">
-        <div className="text-center w-[30%]">
-           <div className="border-t border-black pt-1">Customer</div>
+      <div className="flex justify-between items-end mt-8 px-2 text-[10px] font-semibold text-gray-600 receipt-section h-10">
+        <div className="text-center w-[40%] border-t border-gray-400 pt-1.5">
+           Customer Signature
         </div>
-        <div className="text-center w-[30%]">
-           <div className="border-t border-black pt-1">Owner</div>
+        <div className="text-center w-[40%] border-t border-gray-400 pt-1.5">
+           Owner Signature
         </div>
       </div>
 
       {/* FOOTER */}
-      <div className="mt-4 text-center">
-        <p className="font-bold text-[12px] pb-4">Thank You! Visit Again!</p>
-        <div className="pb-6"></div> {/* Padding for tear-off */}
+      <div className="mt-6 text-center receipt-section pb-4">
+        <p className="font-bold text-[13px] text-gray-900 tracking-wide">Thank You!</p>
+        <p className="text-[11px] text-gray-600 mt-0.5">Please visit again</p>
       </div>
     </div>
   )
 }
+
