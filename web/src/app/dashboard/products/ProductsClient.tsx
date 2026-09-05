@@ -487,12 +487,12 @@ export default function ProductsClient({
                       <span>Product Name *</span>
                       {aiConfidenceInfo?.productName === 'uncertain' && <span className="text-xs text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">Uncertain</span>}
                     </label>
-                    <input type="text" name="name" id="name" required value={name} onChange={e => setName(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Widget" />
+                    <input type="text" name="name" id="name" required value={name} onChange={e => setName(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Product Name" />
                   </div>
                   
                   <div>
-                    <label htmlFor="sku" className="block text-sm font-medium text-gray-700">SKU *</label>
-                    <input type="text" name="sku" id="sku" required value={sku} onChange={e => setSku(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="WDG-001" />
+                    <label htmlFor="sku" className="block text-sm font-medium text-gray-700">SKU (Optional)</label>
+                    <input type="text" name="sku" id="sku" value={sku} onChange={e => setSku(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Leave empty to auto-generate" />
                   </div>
 
                   <div>
@@ -517,7 +517,7 @@ export default function ProductsClient({
                   
                   <div>
                     <label htmlFor="barcode" className="block text-sm font-medium text-gray-700">Barcode</label>
-                    <input type="text" name="barcode" id="barcode" value={barcode} onChange={e => setBarcode(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="123456789012" />
+                    <input type="text" name="barcode" id="barcode" value={barcode} onChange={e => setBarcode(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Scan or enter barcode" />
                   </div>
 
                   {/* Commercials */}

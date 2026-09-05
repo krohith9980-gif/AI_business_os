@@ -99,7 +99,7 @@ export async function addProduct(formData: FormData) {
     }
 
     const name = formData.get('name')?.toString()
-    const sku = formData.get('sku')?.toString()
+    let sku = formData.get('sku')?.toString()
     const purchaseCost = parseFloat(formData.get('purchase_cost')?.toString() || '0')
     const sellingPrice = parseFloat(formData.get('selling_price')?.toString() || '0')
     const trackingMode = formData.get('tracking_mode')?.toString() || 'NONE'
@@ -132,8 +132,12 @@ export async function addProduct(formData: FormData) {
         }
     }
 
-    if (!name || name.trim() === '' || !sku || sku.trim() === '') {
-      return { error: 'Name and SKU are required' }
+    if (!name || name.trim() === '') {
+      return { error: 'Name is required' }
+    }
+
+    if (!sku || sku.trim() === '') {
+      sku = `SYS-${crypto.randomUUID().split('-')[0].toUpperCase()}-${Date.now().toString(36).toUpperCase()}`
     }
 
     // String validation boundaries
