@@ -94,6 +94,7 @@ const productExtractionSchema: any = {
             type: SchemaType.OBJECT,
             description: 'For each key above, indicate if the AI is "certain" or "uncertain". If you are guessing, put "uncertain".',
             properties: {
+              productName: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               batchNumber: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               measurement: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               unitsPerPack: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
