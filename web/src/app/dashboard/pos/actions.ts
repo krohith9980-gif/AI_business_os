@@ -175,8 +175,8 @@ export async function fetchReceiptData(saleId: string) {
     .from('sales')
     .select(`
       *,
-      stores ( name ),
-      profiles ( full_name, role ),
+      stores!sales_store_id_fkey ( name ),
+      profiles ( full_name ),
       customers ( name, phone_number ),
       sale_items (
         *,
