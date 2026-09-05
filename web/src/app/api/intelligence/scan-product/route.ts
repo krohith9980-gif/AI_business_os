@@ -190,17 +190,40 @@ CRITICAL RULES:
 
 Extract the requested fields according to the strict JSON schema. If you are uncertain about a value, return null for it and mark confidence as 'uncertain'.
 `;
-
-    const result = await model.generateContent([
-      { text: prompt },
-      {
-        inlineData: {
-          mimeType: mimeType,
-          data: image
-        }
-      }
-    ]);
+    let result;
+    let attempt = 0;
+    const maxAttempts = 3;
     
+    while (attempt < maxAttempts) {
+      try {
+        result = await model.generateContent([
+          { text: prompt },
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: image
+            }
+          }
+        ]);
+        break; // Success
+      } catch (err: unknown) {
+        attempt++;
+        const errMsg = err instanceof Error ? err.message : '';
+        console.error(`Gemini API Error (Scan Attempt ${attempt}):`, errMsg);
+        
+        if (attempt >= maxAttempts || (!errMsg.includes('503') && !errMsg.includes('429'))) {
+          // If it's not a rate limit / capacity error, or we exhausted retries, throw to main catch
+          throw err;
+        }
+        
+        // Wait before retrying (exponential backoff: 1s, 2s)
+        await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+      }
+    }
+    
+    // Fallback if result is undefined (should theoretically throw above)
+    if (!result) throw new Error('Failed to get result from Gemini API');
+
     let responseText = result.response.text();
     // Strip markdown formatting if present
     responseText = responseText.replace(/^```(json)?\n?/i, '').replace(/\n?```$/i, '').trim();
@@ -209,7 +232,16 @@ Extract the requested fields according to the strict JSON schema. If you are unc
 
     return NextResponse.json(extractedData);
   } catch (error: unknown) {
-    console.error('Gemini API Error (Scan):', error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: 'Failed to process image' }, { status: 500 });
+    const errMsg = error instanceof Error ? error.message : '';
+    console.error('Gemini API Error (Scan Final):', errMsg);
+    
+    let safeUserMessage = 'Failed to process image';
+    if (errMsg.includes('503') || errMsg.includes('429')) {
+      safeUserMessage = 'AI service is currently experiencing high demand. Please try again in a few moments.';
+    } else if (errMsg.includes('400')) {
+      safeUserMessage = 'AI service rejected the request. Please try a clearer image.';
+    }
+    
+    return NextResponse.json({ error: safeUserMessage }, { status: 500 });
   }
 }
