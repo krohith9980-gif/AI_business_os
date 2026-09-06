@@ -1,15 +1,27 @@
 'use client'
 
 import React, { useState, useTransition } from 'react'
-import { addSupplier } from './actions'
+import { addSupplier, editSupplier } from './actions'
 import { useRouter } from 'next/navigation'
 
-type Supplier = {
+export type Supplier = {
   id: string
   name: string
   is_active: boolean
   created_at: string
   updated_at: string
+  attributes?: {
+    contact_person?: string
+    phone?: string
+    email?: string
+    gstin?: string
+    address?: string
+    city?: string
+    state?: string
+    pin?: string
+    payment_terms?: string
+    notes?: string
+  }
 }
 
 export default function SuppliersClient({ 
@@ -25,6 +37,54 @@ export default function SuppliersClient({
   const [error, setError] = useState<string | null>(null)
   
   const [search, setSearch] = useState(searchQuery)
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [name, setName] = useState('')
+  const [contactPerson, setContactPerson] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [gstin, setGstin] = useState('')
+  const [address, setAddress] = useState('')
+  const [city, setCity] = useState('')
+  const [stateName, setStateName] = useState('')
+  const [pin, setPin] = useState('')
+  const [paymentTerms, setPaymentTerms] = useState('')
+  const [notes, setNotes] = useState('')
+  const [isActive, setIsActive] = useState(true)
+
+  const resetForm = () => {
+    setEditingId(null)
+    setName('')
+    setContactPerson('')
+    setPhone('')
+    setEmail('')
+    setGstin('')
+    setAddress('')
+    setCity('')
+    setStateName('')
+    setPin('')
+    setPaymentTerms('')
+    setNotes('')
+    setIsActive(true)
+    setError(null)
+  }
+
+  const handleEdit = (s: Supplier) => {
+    setEditingId(s.id)
+    setName(s.name)
+    setIsActive(s.is_active)
+    setContactPerson(s.attributes?.contact_person || '')
+    setPhone(s.attributes?.phone || '')
+    setEmail(s.attributes?.email || '')
+    setGstin(s.attributes?.gstin || '')
+    setAddress(s.attributes?.address || '')
+    setCity(s.attributes?.city || '')
+    setStateName(s.attributes?.state || '')
+    setPin(s.attributes?.pin || '')
+    setPaymentTerms(s.attributes?.payment_terms || '')
+    setNotes(s.attributes?.notes || '')
+    setIsModalOpen(true)
+  }
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
@@ -46,13 +106,29 @@ export default function SuppliersClient({
     setError(null)
     const formData = new FormData(e.currentTarget)
     
+    const attributes = {
+      contact_person: contactPerson,
+      phone,
+      email,
+      gstin,
+      address,
+      city,
+      state: stateName,
+      pin,
+      payment_terms: paymentTerms,
+      notes
+    }
+    formData.append('attributes', JSON.stringify(attributes))
+    if (editingId) formData.append('id', editingId)
+    formData.append('is_active', isActive ? 'true' : 'false')
+    
     startTransition(async () => {
-      const result = await addSupplier(formData)
+      const result = editingId ? await editSupplier(formData) : await addSupplier(formData)
       if (result?.error) {
         setError(result.error)
       } else if (result?.success) {
         setIsModalOpen(false)
-        setError(null)
+        resetForm()
       }
     })
   }
@@ -119,8 +195,8 @@ export default function SuppliersClient({
                       {new Date(supplier.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-indigo-600 hover:text-indigo-900 focus:outline-none">
-                        View
+                      <button onClick={() => handleEdit(supplier)} className="text-indigo-600 hover:text-indigo-900 focus:outline-none">
+                        View/Edit
                       </button>
                     </td>
                   </tr>
@@ -135,11 +211,11 @@ export default function SuppliersClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-              <h3 className="text-lg font-medium text-gray-900">Add New Supplier</h3>
+              <h3 className="text-lg font-medium text-gray-900">{editingId ? 'View / Edit Supplier' : 'Add New Supplier'}</h3>
               <button 
                 onClick={() => {
                   setIsModalOpen(false)
-                  setError(null)
+                  resetForm()
                 }}
                 className="text-gray-400 hover:text-gray-500 focus:outline-none"
               >
@@ -155,17 +231,68 @@ export default function SuppliersClient({
                 </div>
               )}
               
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto px-1">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700">Supplier Name *</label>
-                  <input
-                    type="text"
-                    name="name"
-                    id="name"
-                    required
-                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    placeholder="Acme Corp"
-                  />
+                  <input type="text" name="name" id="name" required value={name} onChange={e => setName(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Acme Corp" />
+                </div>
+                {editingId && (
+                  <div className="flex items-center">
+                    <input type="checkbox" id="is_active" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600" />
+                    <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">Active</label>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="contact_person" className="block text-sm font-medium text-gray-700">Contact Person</label>
+                    <input type="text" value={contactPerson} onChange={e => setContactPerson(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                  </div>
+                  <div>
+                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone</label>
+                    <input type="text" value={phone} onChange={e => setPhone(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                  </div>
+                  <div>
+                    <label htmlFor="gstin" className="block text-sm font-medium text-gray-700">GSTIN / Tax ID</label>
+                    <input type="text" value={gstin} onChange={e => setGstin(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="address" className="block text-sm font-medium text-gray-700">Address</label>
+                  <input type="text" value={address} onChange={e => setAddress(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label htmlFor="city" className="block text-sm font-medium text-gray-700">City</label>
+                    <input type="text" value={city} onChange={e => setCity(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                  </div>
+                  <div>
+                    <label htmlFor="state" className="block text-sm font-medium text-gray-700">State</label>
+                    <input type="text" value={stateName} onChange={e => setStateName(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                  </div>
+                  <div>
+                    <label htmlFor="pin" className="block text-sm font-medium text-gray-700">PIN / Zip</label>
+                    <input type="text" value={pin} onChange={e => setPin(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="payment_terms" className="block text-sm font-medium text-gray-700">Payment Terms</label>
+                  <input type="text" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)} placeholder="e.g. Net 30, Cash on Delivery" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                </div>
+
+                <div>
+                  <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Notes</label>
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                 </div>
               </div>
 

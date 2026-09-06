@@ -12,6 +12,11 @@ export async function addSupplier(formData: FormData) {
   }
 
   const name = formData.get('name') as string
+  const attributes = formData.get('attributes') as string
+  let parsedAttributes = {}
+  try {
+    if (attributes) parsedAttributes = JSON.parse(attributes)
+  } catch (e) {}
 
   if (!name || name.trim() === '') {
     return { error: 'Name is required' }
@@ -47,7 +52,8 @@ export async function addSupplier(formData: FormData) {
       .insert({
         organization_id,
         name: name.trim(),
-        is_active: true
+        is_active: true,
+        attributes: parsedAttributes
       })
 
     if (insertError) {
@@ -62,6 +68,69 @@ export async function addSupplier(formData: FormData) {
     return { success: true }
   } catch (err: unknown) {
     console.error('Unexpected error in addSupplier:', err)
+    return { error: 'An unexpected error occurred' }
+  }
+}
+
+export async function editSupplier(formData: FormData) {
+  const supabase = await createClient()
+  
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return { error: 'Authentication required' }
+
+  const id = formData.get('id') as string
+  const name = formData.get('name') as string
+  const isActive = formData.get('is_active') === 'true'
+  const attributes = formData.get('attributes') as string
+  
+  let parsedAttributes = {}
+  try {
+    if (attributes) parsedAttributes = JSON.parse(attributes)
+  } catch (e) {}
+
+  if (!id || !name || name.trim() === '') {
+    return { error: 'ID and Name are required' }
+  }
+
+  try {
+    const { data: memberships, error: memError } = await supabase
+      .from('organization_members')
+      .select('organization_id, role')
+      .eq('profile_id', user.id)
+      .eq('is_active', true)
+      .limit(1)
+
+    if (memError || !memberships || memberships.length === 0) {
+      return { error: 'Failed to verify organization membership' }
+    }
+    
+    const { organization_id, role } = memberships[0]
+    if (role !== 'OWNER' && role !== 'MANAGER') {
+      return { error: 'Unauthorized: Only Managers and Owners can edit suppliers.' }
+    }
+
+    const { error: updateError } = await supabase
+      .from('suppliers')
+      .update({
+        name: name.trim(),
+        is_active: isActive,
+        attributes: parsedAttributes
+      })
+      .eq('id', id)
+      .eq('organization_id', organization_id)
+
+    if (updateError) {
+      console.error('Supplier update error:', updateError)
+      if (updateError.code === '23505') {
+          return { error: 'A supplier with this name already exists in your organization.' }
+      }
+      return { error: updateError.message }
+    }
+
+    revalidatePath('/dashboard/suppliers')
+    return { success: true }
+  } catch (err: unknown) {
+    console.error('Unexpected error in editSupplier:', err)
     return { error: 'An unexpected error occurred' }
   }
 }

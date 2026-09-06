@@ -1,63 +1,97 @@
 import React from 'react'
+import { createClient } from '@/utils/supabase/server'
+import PurchasesClient from './PurchasesClient'
+import { redirect } from 'next/navigation'
 
 export const metadata = {
   title: 'Purchases | AI Business OS',
   description: 'Manage purchase orders',
 }
 
-export default function PurchasesPage() {
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Purchases</h1>
-        <button className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-          Create Purchase Order
-        </button>
-      </div>
+export default async function PurchasesPage() {
+  const supabase = await createClient()
+  
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    redirect('/login')
+  }
 
-      <div className="bg-white shadow-sm rounded-lg border border-gray-200">
-        <div className="p-4 border-b border-gray-200">
-          <input
-            type="text"
-            placeholder="Search PO number or supplier..."
-            className="w-full sm:max-w-xs px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-          />
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  PO Number
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Supplier
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
-                  Total
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
-                  No purchase orders found
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+  // 1. Get user's active store and organization
+  const { data: userStore } = await supabase
+    .from('user_stores')
+    .select('store_id, stores(organization_id)')
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .single()
+
+  if (!userStore) {
+    return <div className="p-4 text-red-600">No active store assigned to your profile. Please contact an administrator.</div>
+  }
+
+  const storeId = userStore.store_id
+  // Need to safely extract organization_id
+  const organizationId = Array.isArray(userStore.stores) ? userStore.stores[0]?.organization_id : (userStore.stores as any)?.organization_id
+
+  // 2. Fetch recent purchases
+  const { data: purchases } = await supabase
+    .from('purchase_orders')
+    .select(`
+      id,
+      status,
+      created_at,
+      po_items (
+        id,
+        quantity_ordered,
+        purchase_cost
+      ),
+      suppliers (
+        id,
+        name
+      )
+    `)
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  // 3. Fetch active suppliers
+  const { data: suppliers } = await supabase
+    .from('suppliers')
+    .select('id, name')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .order('name')
+
+  // 4. Fetch active product variants
+  const { data: variants } = await supabase
+    .from('product_variants')
+    .select(`
+      id,
+      sku,
+      product:products (
+        name
+      )
+    `)
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+
+  const formattedPurchases = purchases?.map((po: any) => {
+    // Calculate total
+    const total = po.po_items?.reduce((sum: number, item: any) => sum + (item.quantity_ordered * item.purchase_cost), 0) || 0
+    return {
+      id: po.id,
+      status: po.status,
+      created_at: po.created_at,
+      supplier_name: po.suppliers?.name || 'Unknown Supplier',
+      total
+    }
+  }) || []
+
+  return (
+    <PurchasesClient 
+      initialPurchases={formattedPurchases} 
+      suppliers={suppliers || []} 
+      variants={variants || []}
+      storeId={storeId}
+    />
   )
 }
