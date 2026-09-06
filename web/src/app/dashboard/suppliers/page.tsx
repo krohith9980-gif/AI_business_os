@@ -41,7 +41,7 @@ export default async function SuppliersPage({
   if (activeOrgId) {
     let supabaseQuery = supabase
       .from('suppliers')
-      .select('id, name, is_active, created_at, updated_at')
+      .select('id, name, is_active, created_at, updated_at, attributes')
       .eq('organization_id', activeOrgId)
       .eq('is_active', true)
       .order('name', { ascending: true })
