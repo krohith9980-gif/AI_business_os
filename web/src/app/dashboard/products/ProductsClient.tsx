@@ -98,6 +98,9 @@ export default function ProductsClient({
   const [description, setDescription] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [trackingMode, setTrackingMode] = useState('NONE')
+  const [chemicalName, setChemicalName] = useState('')
+  const [concentration, setConcentration] = useState('')
+  const [formulation, setFormulation] = useState('')
 
   const resetForm = () => {
     setName('')
@@ -113,6 +116,9 @@ export default function ProductsClient({
     setDescription('')
     setCategoryId('')
     setTrackingMode('NONE')
+    setChemicalName('')
+    setConcentration('')
+    setFormulation('')
     setPackagingType('NONE')
     setUnitsPerPack(1)
     setOpeningStock(0)
@@ -148,6 +154,9 @@ export default function ProductsClient({
       setBatchNumber(product.attributes.batchNumber || '')
       setManufacturingDate(product.attributes.manufacturingDate || '')
       setExpiryDate(product.attributes.expiryDate || '')
+      setChemicalName(product.attributes.chemicalName || '')
+      setConcentration(product.attributes.concentration || '')
+      setFormulation(product.attributes.formulation || '')
     }
 
     setPackagingType(product.packaging_type || 'NONE')
@@ -286,6 +295,9 @@ export default function ProductsClient({
     if (item.batchNumber) setBatchNumber(item.batchNumber)
     if (item.manufacturingDate) setManufacturingDate(item.manufacturingDate)
     if (item.expiryDate) setExpiryDate(item.expiryDate)
+    if (item.chemicalName) setChemicalName(item.chemicalName)
+    if (item.concentration) setConcentration(item.concentration)
+    if (item.formulation) setFormulation(item.formulation)
     
     if (item.measurementValue) {
        setItemSize(item.measurementValue.toString())
@@ -321,7 +333,10 @@ export default function ProductsClient({
       manufacturer: manufacturer || null,
       batchNumber: batchNumber || null,
       manufacturingDate: manufacturingDate || null,
-      expiryDate: expiryDate || null
+      expiryDate: expiryDate || null,
+      chemicalName: chemicalName || null,
+      concentration: concentration || null,
+      formulation: formulation || null
     }
     formData.append('attributes', JSON.stringify(attributesData))
 
@@ -534,11 +549,16 @@ export default function ProductsClient({
                     <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Core Identity</h4>
                   </div>
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 flex justify-between">
+                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 flex justify-between items-center">
                       <span>Product Name *</span>
-                      {aiConfidenceInfo?.productName === 'uncertain' && <span className="text-xs text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">Uncertain</span>}
+                      {aiConfidenceInfo?.productName === 'uncertain' && (
+                        <span className="text-xs text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-300 shadow-sm animate-pulse flex items-center">
+                          <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                          Please Verify Name
+                        </span>
+                      )}
                     </label>
-                    <input type="text" name="name" id="name" required value={name} onChange={e => setName(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Product Name" />
+                    <input type="text" name="name" id="name" required value={name} onChange={e => setName(e.target.value)} className={`mt-1 block w-full rounded-md border px-3 py-2 text-gray-900 shadow-sm sm:text-sm ${aiConfidenceInfo?.productName === 'uncertain' ? 'border-amber-400 bg-amber-50 focus:border-amber-500 focus:ring-amber-500' : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'}`} placeholder="Product Name" />
                   </div>
                   
                   <div>
@@ -554,6 +574,43 @@ export default function ProductsClient({
                   <div>
                     <label htmlFor="manufacturer" className="block text-sm font-medium text-gray-700">Manufacturer</label>
                     <input type="text" name="manufacturer" id="manufacturer" value={manufacturer} onChange={e => setManufacturer(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                  </div>
+
+                  {/* Chemical Context Metadata (Agro) */}
+                  <div className="sm:col-span-2 mt-4 pb-2 border-b border-gray-200">
+                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide flex items-center justify-between">
+                      <span>Chemical Metadata</span>
+                      <span className="text-[10px] font-normal text-gray-500 normal-case bg-gray-100 px-2 py-0.5 rounded">Agro Products Only</span>
+                    </h4>
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="chemical_name" className="block text-sm font-medium text-gray-700 flex justify-between">
+                      <span>Chemical Name</span>
+                      {aiConfidenceInfo?.chemicalName === 'uncertain' && <span className="text-xs text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">Uncertain</span>}
+                    </label>
+                    <input type="text" name="chemical_name" id="chemical_name" value={chemicalName} onChange={e => setChemicalName(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="e.g. IMIDACLOPRID" />
+                  </div>
+
+                  <div>
+                    <label htmlFor="concentration" className="block text-sm font-medium text-gray-700 flex justify-between">
+                      <span>Concentration</span>
+                      {aiConfidenceInfo?.concentration === 'uncertain' && <span className="text-xs text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">Uncertain</span>}
+                    </label>
+                    <input type="text" name="concentration" id="concentration" value={concentration} onChange={e => setConcentration(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="e.g. 17.8%" />
+                  </div>
+
+                  <div>
+                    <label htmlFor="formulation" className="block text-sm font-medium text-gray-700 flex justify-between">
+                      <span>Formulation</span>
+                      {aiConfidenceInfo?.formulation === 'uncertain' && <span className="text-xs text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">Uncertain</span>}
+                    </label>
+                    <input type="text" name="formulation" id="formulation" value={formulation} onChange={e => setFormulation(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="e.g. SL, EC" />
+                  </div>
+                  
+                  {/* Category & Barcode */}
+                  <div className="sm:col-span-2 mt-4 pb-2 border-b border-gray-200">
+                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Categorization</h4>
                   </div>
 
                   <div>

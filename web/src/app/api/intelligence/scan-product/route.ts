@@ -22,7 +22,22 @@ const productExtractionSchema: any = {
         properties: {
           productName: {
             type: SchemaType.STRING,
-            description: 'The primary name of the product. Extract exactly as printed. If uncertain, return null.',
+            description: 'The CLEAN commercial product name, explicitly without chemical composition, concentration, or formulation. Example: For "ISO-P ISOPROTHIOLANE 40% EC", extract ONLY "ISO-P". If you cannot confidently determine the commercial boundary, preserve the full original text and mark confidence as uncertain.',
+            nullable: true,
+          },
+          chemicalName: {
+            type: SchemaType.STRING,
+            description: 'The chemical name, active ingredient, or composition separated from the commercial name. E.g., "ISOPROTHIOLANE", "MANCOZEB".',
+            nullable: true,
+          },
+          concentration: {
+            type: SchemaType.STRING,
+            description: 'The concentration percentage. E.g., "40%", "17.8%".',
+            nullable: true,
+          },
+          formulation: {
+            type: SchemaType.STRING,
+            description: 'The formulation code. E.g., "EC", "SL", "WP", "WDG".',
             nullable: true,
           },
           brand: {
@@ -95,6 +110,9 @@ const productExtractionSchema: any = {
             description: 'For each key above, indicate if the AI is "certain" or "uncertain". If you are guessing, put "uncertain".',
             properties: {
               productName: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
+              chemicalName: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
+              concentration: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
+              formulation: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               batchNumber: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               measurement: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               unitsPerPack: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
@@ -102,7 +120,7 @@ const productExtractionSchema: any = {
               expiryDate: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               purchaseCost: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] }
             },
-            required: ['productName', 'batchNumber', 'measurement', 'unitsPerPack', 'manufacturingDate', 'expiryDate', 'purchaseCost']
+            required: ['productName', 'chemicalName', 'concentration', 'formulation', 'batchNumber', 'measurement', 'unitsPerPack', 'manufacturingDate', 'expiryDate', 'purchaseCost']
           }
         },
         required: [
@@ -187,6 +205,8 @@ CRITICAL RULES:
 4. If the image is a SINGLE PACKAGE, extract the single product.
 5. Provide confidence status for specified fields as 'high', 'uncertain', or 'not_found'.
 6. Do not make any financial or pricing decisions. If purchase cost is not explicitly written on a package, return null (do not copy MRP).
+7. For agro products, aggressively extract and remove the chemical information (chemical name, concentration, formulation) from the productName, placing them in their respective fields.
+8. If the boundary between commercial product name and chemical is ambiguous or you are not sure what text is the commercial name, DO NOT SILENTLY DELETE TEXT. You must preserve the full text in productName and mark the productName confidence as "uncertain".
 
 Extract the requested fields according to the strict JSON schema. If you are uncertain about a value, return null for it and mark confidence as 'uncertain'.
 `;
