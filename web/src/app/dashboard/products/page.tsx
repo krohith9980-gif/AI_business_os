@@ -90,9 +90,12 @@ export default async function ProductsPage({
         unit_of_measure,
         packaging_type,
         units_per_pack,
+        barcode,
+        attributes,
         product:products!inner (
           id,
           name,
+          description,
           category:categories (
             id,
             name
@@ -117,7 +120,10 @@ export default async function ProductsPage({
             id: v.id,
             product_id: v.product?.id,
             name: v.product?.name || 'Unknown',
+            description: v.product?.description || '',
             sku: v.sku,
+            barcode: v.barcode || '',
+            category_id: v.product?.category?.id || '',
             category_name: v.product?.category?.name || 'Uncategorized',
             purchase_cost: v.purchase_cost,
             selling_price: v.selling_price,
@@ -125,7 +131,8 @@ export default async function ProductsPage({
             is_active: v.is_active,
             unit_of_measure: v.unit_of_measure,
             packaging_type: v.packaging_type,
-            units_per_pack: v.units_per_pack
+            units_per_pack: v.units_per_pack,
+            attributes: v.attributes || {}
         }))
     }
   }

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useTransition, useRef } from 'react'
-import { addProduct, checkDuplicateProduct } from './actions'
+import { addProduct, checkDuplicateProduct, editProduct } from './actions'
 import { formatCurrency } from '@/utils/currency'
 import { useRouter } from 'next/navigation'
 
@@ -9,7 +9,10 @@ type Product = {
   id: string
   product_id: string
   name: string
+  description?: string
   sku: string
+  barcode?: string
+  category_id?: string
   category_name: string
   purchase_cost: number
   selling_price: number
@@ -18,6 +21,7 @@ type Product = {
   unit_of_measure: string
   packaging_type: string
   units_per_pack: number
+  attributes?: any
 }
 
 type Category = {
@@ -79,6 +83,8 @@ export default function ProductsClient({
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false)
 
   // Form Fields (Controlled)
+  const [editingProductId, setEditingProductId] = useState<string | null>(null)
+  const [editingVariantId, setEditingVariantId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [sku, setSku] = useState('')
   const [barcode, setBarcode] = useState('')
@@ -118,6 +124,39 @@ export default function ProductsClient({
     setAiConfidenceInfo(null)
     setDuplicateWarning(null)
     setError(null)
+    setEditingProductId(null)
+    setEditingVariantId(null)
+  }
+
+  const handleEdit = (product: Product) => {
+    resetForm()
+    setEditingProductId(product.product_id)
+    setEditingVariantId(product.id)
+    
+    setName(product.name || '')
+    setSku(product.sku || '')
+    setBarcode(product.barcode || '')
+    setPurchaseCost((product.purchase_cost || 0).toString())
+    setSellingPrice((product.selling_price || 0).toString())
+    setDescription(product.description || '')
+    setCategoryId(product.category_id || '')
+    setTrackingMode(product.tracking_mode || 'NONE')
+    
+    if (product.attributes) {
+      setBrand(product.attributes.brand || '')
+      setManufacturer(product.attributes.manufacturer || '')
+      setBatchNumber(product.attributes.batchNumber || '')
+      setManufacturingDate(product.attributes.manufacturingDate || '')
+      setExpiryDate(product.attributes.expiryDate || '')
+    }
+
+    setPackagingType(product.packaging_type || 'NONE')
+    setUnitsPerPack(product.units_per_pack || 1)
+    setItemUnit(product.unit_of_measure || 'PCS')
+    // We don't have item_size directly in Product type returned to client currently, 
+    // but the backend uses total_base_units logic. For now, Edit doesn't allow changing package size.
+
+    setIsModalOpen(true)
   }
 
   const currentItemSize = parseFloat(itemSize) || 0
@@ -287,7 +326,15 @@ export default function ProductsClient({
     formData.append('attributes', JSON.stringify(attributesData))
 
     startTransition(async () => {
-      const result = await addProduct(formData)
+      let result;
+      if (editingVariantId) {
+        formData.append('variant_id', editingVariantId)
+        formData.append('product_id', editingProductId!)
+        result = await editProduct(formData)
+      } else {
+        result = await addProduct(formData)
+      }
+      
       if (result?.error) {
         setError(result.error)
       } else if (result?.success) {
@@ -378,7 +425,7 @@ export default function ProductsClient({
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-indigo-600 hover:text-indigo-900 focus:outline-none">View</button>
+                      <button onClick={() => handleEdit(p)} className="text-indigo-600 hover:text-indigo-900 focus:outline-none">View / Edit</button>
                     </td>
                   </tr>
                   )
@@ -389,13 +436,15 @@ export default function ProductsClient({
         </div>
       </div>
 
-      {isModalOpen && (
+    {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
-              <h3 className="text-lg font-medium text-gray-900">Add New Product</h3>
+              <h3 className="text-lg font-medium text-gray-900">{editingVariantId ? 'Edit Product' : 'Add New Product'}</h3>
               
               <div className="flex items-center gap-4">
+                {!editingVariantId && (
+                  <>
                 <input 
                   type="file" 
                   accept="image/*" 
@@ -422,6 +471,8 @@ export default function ProductsClient({
                     </>
                   )}
                 </button>
+                </>
+                )}
                 <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="text-gray-400 hover:text-gray-500">
                   <span className="sr-only">Close</span>&times;
                 </button>
@@ -599,14 +650,16 @@ export default function ProductsClient({
                               onChange={(e) => { setItemSize(e.target.value); setItemSizePreset('CUSTOM'); }}
                               placeholder="Enter value, e.g. 500"
                               required
-                              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              disabled={!!editingVariantId}
+                              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:text-gray-500"
                             />
                             <select 
                               name="unit_of_measure"
                               id="unit_of_measure"
                               value={itemUnit}
                               onChange={(e) => { setItemUnit(e.target.value); setItemSizePreset('CUSTOM'); }}
-                              className="block w-32 rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              disabled={!!editingVariantId}
+                              className="block w-32 rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:text-gray-500"
                             >
                               <option value="G">G</option>
                               <option value="KG">KG</option>
@@ -621,7 +674,8 @@ export default function ProductsClient({
                               id="item_size_preset" 
                               value={itemSizePreset}
                               onChange={(e) => handlePresetChange(e.target.value)}
-                              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-500 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-gray-50"
+                              disabled={!!editingVariantId}
+                              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-500 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
                             >
                               <option value="CUSTOM">Quick Selections...</option>
                               <optgroup label="WEIGHT">
@@ -662,7 +716,8 @@ export default function ProductsClient({
                           required 
                           value={packagingType}
                           onChange={(e) => setPackagingType(e.target.value)}
-                          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          disabled={!!editingVariantId}
+                          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:text-gray-500"
                         >
                           <option value="NONE">No packaging</option>
                           <option value="BOX">Box</option>
@@ -684,7 +739,8 @@ export default function ProductsClient({
                             required 
                             value={unitsPerPack}
                             onChange={(e) => setUnitsPerPack(Math.max(1, parseInt(e.target.value) || 1))}
-                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" 
+                            disabled={!!editingVariantId}
+                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:text-gray-500" 
                           />
                         </div>
                       )}
@@ -703,6 +759,7 @@ export default function ProductsClient({
                     </div>
                   </div>
 
+                  {!editingVariantId && (
                   <div className="sm:col-span-2 mt-4 pt-4 border-t border-gray-200">
                     <h4 className="text-md font-medium text-gray-900 mb-4">Initial Inventory</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -741,6 +798,7 @@ export default function ProductsClient({
                       </div>
                     )}
                   </div>
+                  )}
 
                   <div className="sm:col-span-2 mt-4 pt-4 border-t border-gray-200">
                     <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description</label>

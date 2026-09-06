@@ -209,3 +209,110 @@ export async function addProduct(formData: FormData) {
     return { error: errorMsg }
   }
 }
+
+export async function editProduct(formData: FormData) {
+  try {
+    const supabase = await createClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return { error: 'Unauthorized: Not authenticated' }
+    }
+
+    const { data: memberships, error: memError } = await supabase
+      .from('organization_members')
+      .select('organization_id, role')
+      .eq('profile_id', user.id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true })
+      .limit(1)
+
+    if (memError || !memberships || memberships.length === 0) {
+      return { error: 'No active organization found' }
+    }
+
+    const { organization_id, role } = memberships[0]
+    if (role !== 'OWNER' && role !== 'MANAGER') {
+      return { error: 'Unauthorized: Only Managers and Owners can edit products.' }
+    }
+
+    const variantId = formData.get('variant_id')?.toString()
+    const productId = formData.get('product_id')?.toString()
+    
+    if (!variantId || !productId) {
+      return { error: 'Missing product identifiers' }
+    }
+
+    const name = formData.get('name')?.toString()
+    const sku = formData.get('sku')?.toString()
+    const purchaseCost = parseFloat(formData.get('purchase_cost')?.toString() || '0')
+    const sellingPrice = parseFloat(formData.get('selling_price')?.toString() || '0')
+    const trackingMode = formData.get('tracking_mode')?.toString() || 'NONE'
+    
+    // Optional fields
+    const description = formData.get('description')?.toString() || null
+    const categoryIdStr = formData.get('category_id')?.toString()
+    const category_id = categoryIdStr && categoryIdStr !== '' ? categoryIdStr : null
+    const barcode = formData.get('barcode')?.toString() || null
+    
+    // Attributes JSON
+    let attributes = null
+    const attributesStr = formData.get('attributes')?.toString()
+    if (attributesStr) {
+        try {
+            attributes = JSON.parse(attributesStr)
+        } catch {
+            return { error: 'Invalid attributes JSON format' }
+        }
+    }
+
+    if (!name || name.trim() === '') return { error: 'Name is required' }
+    if (!sku || sku.trim() === '') return { error: 'SKU is required' }
+
+    if (isNaN(purchaseCost) || purchaseCost < 0) return { error: 'Invalid purchase cost' }
+    if (isNaN(sellingPrice) || sellingPrice < 0) return { error: 'Invalid selling price' }
+
+    // Update products table
+    const { error: productError } = await supabase
+      .from('products')
+      .update({
+        name,
+        description,
+        category_id
+      })
+      .eq('id', productId)
+      .eq('organization_id', organization_id)
+      
+    if (productError) {
+      console.error('Update product error:', productError)
+      return { error: 'Failed to update product details' }
+    }
+
+    // Update product_variants table
+    const { error: variantError } = await supabase
+      .from('product_variants')
+      .update({
+        sku,
+        barcode,
+        purchase_cost: purchaseCost,
+        selling_price: sellingPrice,
+        tracking_mode: trackingMode,
+        attributes
+      })
+      .eq('id', variantId)
+      .eq('organization_id', organization_id)
+
+    if (variantError) {
+      console.error('Update variant error:', variantError)
+      return { error: variantError.message || 'Failed to update product variant' }
+    }
+
+    revalidatePath('/dashboard/products')
+    revalidatePath('/dashboard/pos')
+    return { success: true }
+  } catch (err: unknown) {
+    console.error('Action Exception:', err)
+    const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred'
+    return { error: errorMsg }
+  }
+}
