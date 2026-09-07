@@ -52,6 +52,8 @@ export default function SuppliersClient({
   const [notes, setNotes] = useState('')
   const [isActive, setIsActive] = useState(true)
 
+  const [existingAttributes, setExistingAttributes] = useState<any>({})
+
   const resetForm = () => {
     setEditingId(null)
     setName('')
@@ -67,22 +69,29 @@ export default function SuppliersClient({
     setNotes('')
     setIsActive(true)
     setError(null)
+    setExistingAttributes({})
   }
 
   const handleEdit = (s: Supplier) => {
+    let attrs = s.attributes
+    if (typeof attrs === 'string') {
+      try { attrs = JSON.parse(attrs) } catch (e) { attrs = {} }
+    }
+    setExistingAttributes(attrs || {})
+    
     setEditingId(s.id)
     setName(s.name)
     setIsActive(s.is_active)
-    setContactPerson(s.attributes?.contact_person || '')
-    setPhone(s.attributes?.phone || '')
-    setEmail(s.attributes?.email || '')
-    setGstin(s.attributes?.gstin || '')
-    setAddress(s.attributes?.address || '')
-    setCity(s.attributes?.city || '')
-    setStateName(s.attributes?.state || '')
-    setPin(s.attributes?.pin || '')
-    setPaymentTerms(s.attributes?.payment_terms || '')
-    setNotes(s.attributes?.notes || '')
+    setContactPerson(attrs?.contact_person || '')
+    setPhone(attrs?.phone || '')
+    setEmail(attrs?.email || '')
+    setGstin(attrs?.gstin || '')
+    setAddress(attrs?.address || '')
+    setCity(attrs?.city || '')
+    setStateName(attrs?.state || '')
+    setPin(attrs?.pin || '')
+    setPaymentTerms(attrs?.payment_terms || '')
+    setNotes(attrs?.notes || '')
     setIsModalOpen(true)
   }
 
@@ -107,6 +116,7 @@ export default function SuppliersClient({
     const formData = new FormData(e.currentTarget)
     
     const attributes = {
+      ...existingAttributes,
       contact_person: contactPerson,
       phone,
       email,

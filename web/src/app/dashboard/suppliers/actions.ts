@@ -109,7 +109,8 @@ export async function editSupplier(formData: FormData) {
       return { error: 'Unauthorized: Only Managers and Owners can edit suppliers.' }
     }
 
-    const { error: updateError } = await supabase
+    console.log('Executing editSupplier for id:', id, 'organization_id:', organization_id);
+    const { data: updatedRows, error: updateError } = await supabase
       .from('suppliers')
       .update({
         name: name.trim(),
@@ -118,6 +119,9 @@ export async function editSupplier(formData: FormData) {
       })
       .eq('id', id)
       .eq('organization_id', organization_id)
+      .select()
+
+    console.log('Update result:', { updatedRows, updateError });
 
     if (updateError) {
       console.error('Supplier update error:', updateError)
@@ -125,6 +129,11 @@ export async function editSupplier(formData: FormData) {
           return { error: 'A supplier with this name already exists in your organization.' }
       }
       return { error: updateError.message }
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      console.error('Supplier update failed: No rows matched id and organization_id');
+      return { error: 'Update failed: Supplier not found or you lack permission to update it.' }
     }
 
     revalidatePath('/dashboard/suppliers')
