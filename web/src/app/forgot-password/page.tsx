@@ -39,13 +39,20 @@ export default function ForgotPasswordPage() {
     if (resetError) {
       console.error("Password reset error details:", resetError);
       
-      // Determine if we are in development/staging to show detailed errors
-      const isDevOrStaging = window.location.hostname === 'localhost' || window.location.hostname.includes('vercel.app');
+      // Check for Supabase rate-limiting
+      const isRateLimit = resetError.status === 429 || resetError.message?.toLowerCase().includes('security purposes') || resetError.message?.toLowerCase().includes('rate limit');
       
-      if (isDevOrStaging) {
-        setError(`Diagnostic Error: ${resetError.message} | Redirect URL used: ${resetUrl}`);
+      if (isRateLimit) {
+        setError('Password reset was recently requested for this account. Please wait before requesting another reset email.');
       } else {
-        setError('Failed to send recovery email. Please try again later.');
+        // Determine if we are in development/staging to show detailed errors
+        const isDevOrStaging = window.location.hostname === 'localhost' || window.location.hostname.includes('vercel.app');
+        
+        if (isDevOrStaging) {
+          setError(`Diagnostic Error: ${resetError.message} | Redirect URL used: ${resetUrl}`);
+        } else {
+          setError('Failed to send recovery email. Please try again later.');
+        }
       }
       setLoading(false)
     } else {
