@@ -23,16 +23,30 @@ export default function ForgotPasswordPage() {
       return
     }
 
-    // Using window.location.origin avoids hardcoding localhost and automatically 
-    // uses the correct Preview Vercel URL when running on staging.
-    const resetUrl = `${window.location.origin}/auth/reset-callback`
+    // Prefer explicitly configured APP_URL.
+    // If not set, safely fallback to the branch URL or the window origin.
+    const baseUrl = 
+      process.env.NEXT_PUBLIC_APP_URL || 
+      process.env.NEXT_PUBLIC_SITE_URL || 
+      (process.env.NEXT_PUBLIC_VERCEL_BRANCH_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_BRANCH_URL}` : window.location.origin)
+    
+    const resetUrl = `${baseUrl}/auth/reset-callback`
 
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: resetUrl,
     })
     
     if (resetError) {
-      setError(resetError.message)
+      console.error("Password reset error details:", resetError);
+      
+      // Determine if we are in development/staging to show detailed errors
+      const isDevOrStaging = window.location.hostname === 'localhost' || window.location.hostname.includes('vercel.app');
+      
+      if (isDevOrStaging) {
+        setError(`Diagnostic Error: ${resetError.message} | Redirect URL used: ${resetUrl}`);
+      } else {
+        setError('Failed to send recovery email. Please try again later.');
+      }
       setLoading(false)
     } else {
       setSuccess(true)
