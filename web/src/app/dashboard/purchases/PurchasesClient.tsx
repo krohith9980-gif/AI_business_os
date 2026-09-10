@@ -2,6 +2,8 @@
 
 import React, { useState, useTransition, useEffect } from 'react'
 import { createPurchaseOrder } from './actions'
+import { formatCurrency } from '@/utils/currency'
+import AIInvoiceModal from './AIInvoiceModal'
 
 type PurchaseItem = {
   variant_id: string
@@ -25,6 +27,7 @@ export default function PurchasesClient({
 }) {
   const [purchases, setPurchases] = useState(initialPurchases)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -100,12 +103,20 @@ export default function PurchasesClient({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Purchases</h1>
-        <button 
-          onClick={openNewPurchaseModal}
-          className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-        >
-          Create Purchase Order
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setIsAiModalOpen(true)}
+            className="inline-flex justify-center rounded-md border border-indigo-600 bg-white py-2 px-4 text-sm font-medium text-indigo-600 shadow-sm hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+          >
+            Upload Invoice (AI)
+          </button>
+          <button 
+            onClick={openNewPurchaseModal}
+            className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+          >
+            Create Purchase Order
+          </button>
+        </div>
       </div>
 
       <div className="bg-white shadow-sm rounded-lg border border-gray-200">
@@ -135,7 +146,7 @@ export default function PurchasesClient({
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{po.supplier_name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{po.status}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      ${po.total.toFixed(2)}
+                      {formatCurrency(po.total)}
                     </td>
                   </tr>
                 ))
@@ -232,7 +243,7 @@ export default function PurchasesClient({
                           />
                         </div>
                         <div className="w-24 pt-6 text-right font-medium text-sm text-gray-900">
-                          ${(item.quantity * item.purchase_cost).toFixed(2)}
+                          {formatCurrency(item.quantity * item.purchase_cost)}
                         </div>
                         {items.length > 1 && (
                           <div className="pt-6">
@@ -247,7 +258,7 @@ export default function PurchasesClient({
 
                   <div className="mt-4 text-right">
                     <span className="text-sm font-medium text-gray-500">Total Purchase Value: </span>
-                    <span className="text-lg font-bold text-gray-900">${totalCost.toFixed(2)}</span>
+                    <span className="text-lg font-bold text-gray-900">{formatCurrency(totalCost)}</span>
                   </div>
                 </div>
               </div>
@@ -272,6 +283,18 @@ export default function PurchasesClient({
           </div>
         </div>
       )}
+
+      <AIInvoiceModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        onSuccess={() => {
+          setIsAiModalOpen(false)
+          // In a real app we'd refresh data here, relying on revalidatePath for now
+        }}
+        suppliers={suppliers}
+        variants={variants}
+        storeId={storeId}
+      />
     </div>
   )
 }

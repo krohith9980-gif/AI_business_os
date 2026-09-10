@@ -125,10 +125,10 @@ export default function ThermalReceipt({ data }: { data: ReceiptData }) {
                   {item.quantity}
                 </td>
                 <td className="py-1.5 text-right text-[11px] text-gray-700">
-                  {Number(item.unitPrice).toFixed(2)}
+                  {formatCurrency(item.unitPrice)}
                 </td>
                 <td className="py-1.5 text-right font-semibold text-[11px] pr-1">
-                  {Number(item.lineTotal).toFixed(2)}
+                  {formatCurrency(item.lineTotal)}
                 </td>
               </tr>
             ))}
@@ -140,18 +140,18 @@ export default function ThermalReceipt({ data }: { data: ReceiptData }) {
       <div className="border-t-[1.5px] border-black pt-2 space-y-1 receipt-section">
         <div className="flex justify-between text-[11px] text-gray-700 px-1">
           <span>Subtotal</span>
-          <span>{Number(data.subtotal).toFixed(2)}</span>
+          <span>{formatCurrency(data.subtotal)}</span>
         </div>
         {data.discount > 0 && (
           <div className="flex justify-between text-[11px] text-red-600 px-1">
             <span>Discount</span>
-            <span>-{Number(data.discount).toFixed(2)}</span>
+            <span>-{formatCurrency(data.discount).replace('₹', '₹')}</span>
           </div>
         )}
         {data.totalGST > 0 && (
           <div className="flex justify-between text-[11px] text-gray-700 px-1">
             <span>Tax (GST)</span>
-            <span>{Number(data.totalGST).toFixed(2)}</span>
+            <span>{formatCurrency(data.totalGST)}</span>
           </div>
         )}
         

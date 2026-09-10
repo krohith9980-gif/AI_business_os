@@ -75,6 +75,11 @@ const productExtractionSchema: any = {
             description: 'If this is a supplier invoice, the cost or rate of the product. Otherwise null.',
             nullable: true,
           },
+          purchaseQuantity: {
+            type: SchemaType.NUMBER,
+            description: 'If this is a supplier invoice, the number of units purchased (quantity). Otherwise null.',
+            nullable: true,
+          },
           sku: {
             type: SchemaType.STRING,
             description: 'The internal SKU or Article No. if visible. Mostly null for retail boxes.',
@@ -118,15 +123,16 @@ const productExtractionSchema: any = {
               unitsPerPack: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               manufacturingDate: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               expiryDate: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
-              purchaseCost: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] }
+              purchaseCost: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
+              purchaseQuantity: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] }
             },
-            required: ['productName', 'chemicalName', 'concentration', 'formulation', 'batchNumber', 'measurement', 'unitsPerPack', 'manufacturingDate', 'expiryDate', 'purchaseCost']
+            required: ['productName', 'chemicalName', 'concentration', 'formulation', 'batchNumber', 'measurement', 'unitsPerPack', 'manufacturingDate', 'expiryDate', 'purchaseCost', 'purchaseQuantity']
           }
         },
         required: [
           'productName', 'manufacturer', 'brand', 'sku', 'barcode', 'batchNumber', 
           'measurementValue', 'measurementUnit', 'packagingType', 'unitsPerPack', 
-          'manufacturingDate', 'expiryDate', 'purchaseCost', 'mrp', 'confidence'
+          'manufacturingDate', 'expiryDate', 'purchaseCost', 'purchaseQuantity', 'mrp', 'confidence'
         ]
       }
     }
