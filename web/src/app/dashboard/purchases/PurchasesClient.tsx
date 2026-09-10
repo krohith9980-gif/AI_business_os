@@ -12,7 +12,7 @@ type PurchaseItem = {
 }
 
 type Supplier = { id: string; name: string }
-type Variant = { id: string; sku: string; product?: { name: string } | { name: string }[] | null }
+type Variant = { id: string; sku: string; selling_price: number; product?: { name: string } | { name: string }[] | null }
 
 export default function PurchasesClient({
   initialPurchases,

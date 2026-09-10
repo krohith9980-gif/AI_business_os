@@ -5,7 +5,7 @@ import { formatCurrency } from '@/utils/currency'
 import { createInvoicePurchaseOrder, InvoicePurchaseItem } from './invoice-actions'
 
 type Supplier = { id: string; name: string }
-type Variant = { id: string; sku: string; product?: { name: string } | { name: string }[] | null }
+type Variant = { id: string; sku: string; selling_price: number; product?: { name: string } | { name: string }[] | null }
 
 type DraftItem = {
   id: string
@@ -16,6 +16,7 @@ type DraftItem = {
   sku: string
   barcode: string
   purchase_cost: number
+  sale_cost: number | ''
   quantity: number
   raw_ai_data: any
 }
@@ -108,6 +109,7 @@ export default function AIInvoiceModal({
       const aiItems = data.items || []
       const newDrafts: DraftItem[] = aiItems.map((item: any, idx: number) => {
         const matchedVariantId = findBestMatch(item)
+        const matchedVariant = variants.find(v => v.id === matchedVariantId)
         return {
           id: `draft-${idx}`,
           selected: true,
@@ -117,6 +119,7 @@ export default function AIInvoiceModal({
           sku: item.sku || '',
           barcode: item.barcode || '',
           purchase_cost: item.purchaseCost || 0,
+          sale_cost: matchedVariant ? matchedVariant.selling_price : '',
           quantity: item.purchaseQuantity || item.measurementValue || 1, // Fallback if qty wasn't found
           raw_ai_data: item
         }
@@ -141,11 +144,10 @@ export default function AIInvoiceModal({
 
   const handleMatchChange = (id: string, variantId: string) => {
     if (variantId === 'NEW') {
-      handleUpdateItem(id, 'is_new', true)
-      handleUpdateItem(id, 'matched_variant_id', '')
+      setDraftItems(prev => prev.map(item => item.id === id ? { ...item, is_new: true, matched_variant_id: '', sale_cost: '' } : item))
     } else {
-      handleUpdateItem(id, 'is_new', false)
-      handleUpdateItem(id, 'matched_variant_id', variantId)
+      const matchedVariant = variants.find(v => v.id === variantId)
+      setDraftItems(prev => prev.map(item => item.id === id ? { ...item, is_new: false, matched_variant_id: variantId, sale_cost: matchedVariant ? matchedVariant.selling_price : '' } : item))
     }
   }
 
@@ -169,7 +171,8 @@ export default function AIInvoiceModal({
       if (item.is_new && !item.product_name) return setError('New products must have a name')
       if (!item.is_new && !item.matched_variant_id) return setError('Existing products must have a variant selected')
       if (item.quantity <= 0) return setError('Quantity must be greater than 0')
-      if (item.purchase_cost < 0) return setError('Cost cannot be negative')
+      if (item.purchase_cost < 0) return setError('Purchase cost cannot be negative')
+      if (item.sale_cost === '' || Number(item.sale_cost) < 0) return setError('Sale cost is required and cannot be negative')
     }
 
     setIsSubmitting(true)
@@ -182,6 +185,7 @@ export default function AIInvoiceModal({
         sku: item.is_new ? item.sku : undefined,
         barcode: item.is_new ? item.barcode : undefined,
         purchase_cost: item.purchase_cost,
+        sale_cost: Number(item.sale_cost),
         quantity: item.quantity,
         attributes: item.raw_ai_data
       }))
@@ -285,7 +289,7 @@ export default function AIInvoiceModal({
                           className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                         />
                         
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 flex-1">
                           {/* Matching / Name */}
                           <div className="md:col-span-2">
                             <label className="block text-xs font-medium text-gray-500 mb-1">Product Match</label>
@@ -335,15 +339,30 @@ export default function AIInvoiceModal({
                             />
                           </div>
 
-                          {/* Price */}
+                          {/* Purchase Cost */}
                           <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Unit Purchase Price</label>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Purchase Cost</label>
                             <input
                               type="number"
                               min="0"
                               step="0.01"
                               value={item.purchase_cost}
                               onChange={e => handleUpdateItem(item.id, 'purchase_cost', parseFloat(e.target.value) || 0)}
+                              disabled={!item.selected}
+                              required={item.selected}
+                              className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-700 disabled:border-gray-200"
+                            />
+                          </div>
+
+                          {/* Sale Cost */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Sale Cost</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.sale_cost}
+                              onChange={e => handleUpdateItem(item.id, 'sale_cost', e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))}
                               disabled={!item.selected}
                               required={item.selected}
                               className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-700 disabled:border-gray-200"

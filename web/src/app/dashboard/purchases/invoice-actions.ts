@@ -11,6 +11,7 @@ export type InvoicePurchaseItem = {
   sku?: string
   barcode?: string
   purchase_cost: number
+  sale_cost: number
   quantity: number
   attributes?: Record<string, any>
 }

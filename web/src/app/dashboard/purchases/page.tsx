@@ -67,6 +67,7 @@ export default async function PurchasesPage() {
     .select(`
       id,
       sku,
+      selling_price,
       product:products (
         name
       )
