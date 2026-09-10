@@ -25,7 +25,7 @@ export default function PurchasesClient({
   variants: Variant[]
   storeId: string
 }) {
-  const [purchases, setPurchases] = useState(initialPurchases)
+  const purchases = initialPurchases
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isAiModalOpen, setIsAiModalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
