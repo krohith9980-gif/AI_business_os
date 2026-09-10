@@ -263,7 +263,7 @@ export default function AIInvoiceModal({
                   value={supplierId}
                   onChange={e => setSupplierId(e.target.value)}
                   required
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm sm:text-sm"
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 >
                   <option value="">Select Supplier...</option>
                   {suppliers.map(s => (
@@ -293,7 +293,7 @@ export default function AIInvoiceModal({
                               value={item.is_new ? 'NEW' : item.matched_variant_id}
                               onChange={e => handleMatchChange(item.id, e.target.value)}
                               disabled={!item.selected}
-                              className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                              className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-700 disabled:border-gray-200"
                             >
                               <option value="NEW" className="font-bold text-indigo-600">+ Create New Product</option>
                               <optgroup label="Existing Products">
@@ -316,7 +316,7 @@ export default function AIInvoiceModal({
                                 disabled={!item.selected}
                                 placeholder="New Product Name"
                                 required={item.is_new && item.selected}
-                                className="mt-2 block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm bg-white"
+                                className="mt-2 block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 placeholder:text-gray-400 disabled:bg-gray-100 disabled:text-gray-700 disabled:border-gray-200"
                               />
                             )}
                           </div>
@@ -331,7 +331,7 @@ export default function AIInvoiceModal({
                               onChange={e => handleUpdateItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
                               disabled={!item.selected}
                               required={item.selected}
-                              className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                              className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-700 disabled:border-gray-200"
                             />
                           </div>
 
@@ -346,7 +346,7 @@ export default function AIInvoiceModal({
                               onChange={e => handleUpdateItem(item.id, 'purchase_cost', parseFloat(e.target.value) || 0)}
                               disabled={!item.selected}
                               required={item.selected}
-                              className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                              className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-700 disabled:border-gray-200"
                             />
                           </div>
                         </div>
