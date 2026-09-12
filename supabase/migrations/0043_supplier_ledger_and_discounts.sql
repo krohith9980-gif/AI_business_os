@@ -16,7 +16,7 @@ ADD COLUMN IF NOT EXISTS payment_status payment_status NOT NULL DEFAULT 'PENDING
 
 -- 3. Supplier Payments (Standalone Accounts Payable tracking)
 CREATE TABLE IF NOT EXISTS public.supplier_payments (
-    id UUID PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     po_id UUID REFERENCES public.purchase_orders(id) ON DELETE RESTRICT,
     supplier_id UUID NOT NULL REFERENCES public.suppliers(id) ON DELETE RESTRICT,
     organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
