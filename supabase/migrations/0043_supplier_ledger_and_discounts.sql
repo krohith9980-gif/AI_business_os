@@ -396,3 +396,69 @@ BEGIN
     END;
 END;
 $$;
+
+-- 7. RPC to Create Supplier with Optional Opening Balance
+CREATE OR REPLACE FUNCTION public.create_supplier_with_opening_balance(
+    p_name TEXT,
+    p_attributes JSONB,
+    p_store_id UUID, -- For the ledger store_id reference if provided
+    p_opening_balance NUMERIC DEFAULT 0
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_caller_id UUID;
+    v_org_id UUID;
+    v_supplier_id UUID;
+BEGIN
+    -- 1. Identify caller
+    v_caller_id := auth.uid();
+    IF v_caller_id IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
+
+    -- 2. Resolve organization (use store_id if provided, else rely on member profile)
+    IF p_store_id IS NOT NULL THEN
+        SELECT organization_id INTO v_org_id FROM public.stores WHERE id = p_store_id;
+    ELSE
+        SELECT organization_id INTO v_org_id FROM public.organization_members 
+        WHERE profile_id = v_caller_id AND is_active = true LIMIT 1;
+    END IF;
+    
+    IF v_org_id IS NULL THEN RAISE EXCEPTION 'Invalid organization context'; END IF;
+
+    -- 3. Verify RBAC
+    IF NOT public.is_org_manager_or_owner(v_org_id) THEN
+        RAISE EXCEPTION 'Unauthorized: Only Managers and Owners can create suppliers';
+    END IF;
+
+    -- 4. Validate Inputs
+    IF p_opening_balance < 0 THEN RAISE EXCEPTION 'Opening balance cannot be negative'; END IF;
+    IF p_name IS NULL OR length(trim(p_name)) = 0 THEN RAISE EXCEPTION 'Supplier name is required'; END IF;
+
+    -- 5. Safe Concurrency Transaction
+    BEGIN
+        -- Insert Supplier with starting outstanding balance
+        INSERT INTO public.suppliers (
+            organization_id, name, is_active, attributes, outstanding_balance
+        ) VALUES (
+            v_org_id, trim(p_name), true, p_attributes, p_opening_balance
+        ) RETURNING id INTO v_supplier_id;
+
+        -- Create Ledger Entry only if > 0
+        IF p_opening_balance > 0 THEN
+            INSERT INTO public.supplier_ledger (
+                organization_id, supplier_id, store_id, transaction_type, amount, balance_after, notes, created_by
+            ) VALUES (
+                v_org_id, v_supplier_id, p_store_id, 'OPENING_BALANCE', p_opening_balance, p_opening_balance, 'Opening Balance', v_caller_id
+            );
+        END IF;
+
+        RETURN v_supplier_id;
+
+    EXCEPTION WHEN unique_violation THEN
+        RAISE EXCEPTION 'A supplier with this name already exists in your organization.';
+    END;
+END;
+$$;

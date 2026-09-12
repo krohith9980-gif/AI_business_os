@@ -12,6 +12,10 @@ export async function addSupplier(formData: FormData) {
   }
 
   const name = formData.get('name') as string
+  const storeId = formData.get('storeId') as string
+  const openingBalanceStr = formData.get('openingBalance') as string
+  const openingBalance = openingBalanceStr ? parseFloat(openingBalanceStr) : 0
+  
   const attributes = formData.get('attributes') as string
   let parsedAttributes = {}
   try {
@@ -21,51 +25,26 @@ export async function addSupplier(formData: FormData) {
   if (!name || name.trim() === '') {
     return { error: 'Name is required' }
   }
+  
+  if (openingBalance < 0) {
+    return { error: 'Opening balance cannot be negative' }
+  }
 
   try {
-    // 1. Determine user's authorized organization securely on the server
-    const { data: memberships, error: memError } = await supabase
-      .from('organization_members')
-      .select('organization_id, role')
-      .eq('profile_id', user.id)
-      .eq('is_active', true)
-      .limit(1)
+    const { data: supplierId, error: rpcError } = await supabase.rpc('create_supplier_with_opening_balance', {
+      p_name: name.trim(),
+      p_attributes: parsedAttributes,
+      p_store_id: storeId || null,
+      p_opening_balance: openingBalance
+    })
 
-    if (memError) {
-      console.error('Membership fetch error:', memError)
-      return { error: 'Failed to verify organization membership' }
-    }
-    
-    if (!memberships || memberships.length === 0) {
-      return { error: 'No active organization found for this user' }
-    }
-
-    const { organization_id, role } = memberships[0]
-
-    if (role !== 'OWNER' && role !== 'MANAGER') {
-      return { error: 'Unauthorized: Only Managers and Owners can add suppliers.' }
-    }
-
-    // 2. Insert the supplier using the securely determined organization_id
-    const { error: insertError } = await supabase
-      .from('suppliers')
-      .insert({
-        organization_id,
-        name: name.trim(),
-        is_active: true,
-        attributes: parsedAttributes
-      })
-
-    if (insertError) {
-      console.error('Supplier insert error:', insertError)
-      if (insertError.code === '23505') {
-          return { error: 'A supplier with this name already exists in your organization.' }
-      }
-      return { error: insertError.message }
+    if (rpcError) {
+      console.error('Supplier creation RPC error:', rpcError)
+      return { error: rpcError.message || 'Failed to create supplier' }
     }
 
     revalidatePath('/dashboard/suppliers')
-    return { success: true }
+    return { success: true, id: supplierId }
   } catch (err: unknown) {
     console.error('Unexpected error in addSupplier:', err)
     return { error: 'An unexpected error occurred' }

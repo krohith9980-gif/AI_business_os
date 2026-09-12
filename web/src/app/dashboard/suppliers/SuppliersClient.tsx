@@ -56,6 +56,7 @@ export default function SuppliersClient({
   const [paymentTerms, setPaymentTerms] = useState('')
   const [notes, setNotes] = useState('')
   const [isActive, setIsActive] = useState(true)
+  const [openingBalance, setOpeningBalance] = useState<number>(0)
 
   const [existingAttributes, setExistingAttributes] = useState<any>({})
 
@@ -86,6 +87,7 @@ export default function SuppliersClient({
     setPaymentTerms('')
     setNotes('')
     setIsActive(true)
+    setOpeningBalance(0)
     setError(null)
     setExistingAttributes({})
   }
@@ -152,6 +154,7 @@ export default function SuppliersClient({
     formData.append('attributes', JSON.stringify(attributes))
     if (editingId) formData.append('id', editingId)
     formData.append('is_active', isActive ? 'true' : 'false')
+    if (storeId) formData.append('storeId', storeId)
     
     startTransition(async () => {
       const result = editingId ? await editSupplier(formData) : await addSupplier(formData)
@@ -258,7 +261,19 @@ export default function SuppliersClient({
             </div>
             <form onSubmit={handleFormSubmit} className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
               {/* Similar fields as original */}
-              <div><label className="block text-sm font-medium text-gray-700">Supplier Name *</label><input type="text" name="name" required value={name} onChange={e => setName(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" /></div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Supplier Name *</label>
+                <input type="text" name="name" required value={name} onChange={e => setName(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" />
+              </div>
+              
+              {!editingId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Opening Balance (₹)</label>
+                  <p className="text-xs text-gray-500 mb-1">Optional. The existing payable amount owed to this supplier.</p>
+                  <input type="number" name="openingBalance" min="0" step="0.01" value={openingBalance} onChange={e => setOpeningBalance(parseFloat(e.target.value) || 0)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" />
+                </div>
+              )}
+
               {editingId && <div className="flex items-center"><input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600" /><label className="ml-2 text-sm text-gray-900">Active</label></div>}
               <div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-700">Contact</label><input type="text" value={contactPerson} onChange={e => setContactPerson(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded px-2 py-1 text-sm" /></div><div><label className="block text-sm text-gray-700">Phone</label><input type="text" value={phone} onChange={e => setPhone(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded px-2 py-1 text-sm" /></div></div>
               <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm bg-white border rounded">Cancel</button><button type="submit" disabled={isPending} className="px-4 py-2 text-sm text-white bg-indigo-600 rounded disabled:bg-indigo-400">{isPending ? 'Saving...' : 'Save'}</button></div>
