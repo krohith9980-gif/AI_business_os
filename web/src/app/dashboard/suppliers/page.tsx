@@ -24,15 +24,16 @@ export default async function SuppliersPage({
   const resolvedParams = await searchParams
   const query = resolvedParams.q || ''
 
-  // 2. Determine active org
-  const { data: memberships } = await supabase
-    .from('organization_members')
-    .select('organization_id')
+  // 2. Fetch active store ID
+  const { data: userStore } = await supabase
+    .from('user_stores')
+    .select('store_id, stores(organization_id)')
     .eq('profile_id', user.id)
     .eq('is_active', true)
-    .limit(1)
+    .single()
 
-  const activeOrgId = memberships?.[0]?.organization_id
+  const storeId = userStore?.store_id
+  const activeOrgId = Array.isArray(userStore?.stores) ? userStore.stores[0]?.organization_id : (userStore?.stores as any)?.organization_id
 
   // 3. Fetch suppliers
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,7 +42,7 @@ export default async function SuppliersPage({
   if (activeOrgId) {
     let supabaseQuery = supabase
       .from('suppliers')
-      .select('id, name, is_active, created_at, updated_at, attributes')
+      .select('id, name, is_active, outstanding_balance, created_at, updated_at, attributes')
       .eq('organization_id', activeOrgId)
       .eq('is_active', true)
       .order('name', { ascending: true })
@@ -58,6 +59,7 @@ export default async function SuppliersPage({
     <SuppliersClient 
       initialSuppliers={suppliers} 
       searchQuery={query}
+      storeId={storeId}
     />
   )
 }

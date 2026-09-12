@@ -135,7 +135,13 @@ const productExtractionSchema: any = {
           'manufacturingDate', 'expiryDate', 'purchaseCost', 'purchaseQuantity', 'mrp', 'confidence'
         ]
       }
-    }
+    },
+    supplierName: { type: SchemaType.STRING, description: "If document is an invoice, the name of the supplier or vendor.", nullable: true },
+    invoiceNumber: { type: SchemaType.STRING, description: "If document is an invoice, the invoice number or bill number.", nullable: true },
+    invoiceDate: { type: SchemaType.STRING, description: "If document is an invoice, the date on the invoice.", nullable: true },
+    invoiceDiscount: { type: SchemaType.NUMBER, description: "If document is an invoice, the overall discount applied to the entire invoice, in currency.", nullable: true },
+    taxAmount: { type: SchemaType.NUMBER, description: "If document is an invoice, the total tax amount on the invoice.", nullable: true },
+    invoiceTotal: { type: SchemaType.NUMBER, description: "If document is an invoice, the final total payable amount on the invoice.", nullable: true }
   },
   required: ['documentType', 'items']
 };

@@ -39,6 +39,9 @@ export default async function PurchasesPage() {
       id,
       status,
       created_at,
+      grand_total,
+      payment_status,
+      amount_paid,
       po_items (
         id,
         quantity_ordered,
@@ -76,11 +79,16 @@ export default async function PurchasesPage() {
     .eq('is_active', true)
 
   const formattedPurchases = purchases?.map((po: any) => {
-    // Calculate total
-    const total = po.po_items?.reduce((sum: number, item: any) => sum + (item.quantity_ordered * item.purchase_cost), 0) || 0
+    // Fallback for older purchases where grand_total might be 0
+    let total = po.grand_total
+    if (!total || total === 0) {
+      total = po.po_items?.reduce((sum: number, item: any) => sum + (item.quantity_ordered * item.purchase_cost), 0) || 0
+    }
+
     return {
       id: po.id,
       status: po.status,
+      payment_status: po.payment_status || 'PENDING',
       created_at: po.created_at,
       supplier_name: po.suppliers?.name || 'Unknown Supplier',
       total

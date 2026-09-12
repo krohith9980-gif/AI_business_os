@@ -143,3 +143,36 @@ export async function editSupplier(formData: FormData) {
     return { error: 'An unexpected error occurred' }
   }
 }
+
+export async function getSupplierLedger(supplierId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return { error: 'Authentication required' }
+
+  try {
+    const { data: ledger, error } = await supabase
+      .from('supplier_ledger')
+      .select(`
+        id,
+        transaction_type,
+        amount,
+        balance_after,
+        reference_id,
+        notes,
+        created_at
+      `)
+      .eq('supplier_id', supplierId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Ledger fetch error:', error)
+      return { error: 'Failed to fetch ledger' }
+    }
+
+    return { success: true, ledger }
+  } catch (err: unknown) {
+    console.error('Unexpected error in getSupplierLedger:', err)
+    return { error: 'An unexpected error occurred' }
+  }
+}
