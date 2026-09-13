@@ -5,8 +5,20 @@ import { formatCurrency } from '@/utils/currency'
 import { createInvoicePurchaseOrder, InvoicePurchaseItem } from './invoice-actions'
 
 type Supplier = { id: string; name: string }
-type Variant = { id: string; sku: string; selling_price: number; product?: { name: string } | { name: string }[] | null }
+type Variant = { id: string; sku: string; selling_price: number; attributes?: any; product?: { name: string } | { name: string }[] | null }
 
+
+function getVariantName(v: Variant): string {
+  const baseName = Array.isArray(v.product) ? v.product[0]?.name : v.product?.name || '';
+  if (!v.attributes) return baseName;
+  
+  // Extract sizing or volume attributes if they exist
+  const sizeStr = v.attributes.size || v.attributes.volume || v.attributes.weight || v.attributes.measurement || v.attributes.variant || '';
+  if (sizeStr && typeof sizeStr === 'string' && !baseName.toLowerCase().includes(sizeStr.toLowerCase())) {
+    return `${baseName} ${sizeStr}`;
+  }
+  return baseName;
+}
 type DraftItem = {
   id: string
   selected: boolean
@@ -73,11 +85,19 @@ export default function AIInvoiceModal({
       if (aiItem.sku && v.sku === aiItem.sku) return v.id
     }
     const targetName = (aiItem.productName || '').toLowerCase()
-    if (!targetName) return ''
+    const fullTargetName = (aiItem.fullProductIdentity || aiItem.productName || '').toLowerCase()
+    
+    if (!fullTargetName && !targetName) return ''
+    
     for (const v of variants) {
-      const vName = Array.isArray(v.product) ? v.product[0]?.name : v.product?.name
-      // Exact match only to prevent over-matching different packaging variants
-      if (vName && vName.toLowerCase() === targetName) return v.id
+      const vName = getVariantName(v)
+      if (!vName) continue
+      
+      const vNameLower = vName.toLowerCase()
+      // Exact match against full identity
+      if (fullTargetName && vNameLower === fullTargetName) return v.id
+      // Exact match against base identity
+      if (targetName && vNameLower === targetName) return v.id
     }
     return ''
   }
@@ -354,7 +374,7 @@ export default function AIInvoiceModal({
                                 <option value="NEW" className="font-bold text-indigo-600">+ Create New Product</option>
                                 <optgroup label="Existing Products">
                                   {variants.map(v => {
-                                    const vName = Array.isArray(v.product) ? v.product[0]?.name : v.product?.name
+                                    const vName = getVariantName(v)
                                     return <option key={v.id} value={v.id}>{vName} ({v.sku})</option>
                                   })}
                                 </optgroup>

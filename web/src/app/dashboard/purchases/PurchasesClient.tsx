@@ -12,7 +12,19 @@ type PurchaseItem = {
 }
 
 type Supplier = { id: string; name: string }
-type Variant = { id: string; sku: string; selling_price: number; product?: { name: string } | { name: string }[] | null }
+type Variant = { id: string; sku: string; selling_price: number; attributes?: any; product?: { name: string } | { name: string }[] | null }
+
+function getVariantName(v: Variant): string {
+  const baseName = Array.isArray(v.product) ? v.product[0]?.name : v.product?.name || '';
+  if (!v.attributes) return baseName;
+  
+  // Extract sizing or volume attributes if they exist
+  const sizeStr = v.attributes.size || v.attributes.volume || v.attributes.weight || v.attributes.measurement || v.attributes.variant || '';
+  if (sizeStr && typeof sizeStr === 'string' && !baseName.toLowerCase().includes(sizeStr.toLowerCase())) {
+    return `${baseName} ${sizeStr}`;
+  }
+  return baseName;
+}
 
 export default function PurchasesClient({
   initialPurchases,
@@ -224,7 +236,7 @@ export default function PurchasesClient({
                           >
                             <option value="">Select Product...</option>
                             {variants.map(v => {
-                              const productName = Array.isArray(v.product) ? v.product[0]?.name : v.product?.name;
+                              const productName = getVariantName(v);
                               return (
                                 <option key={v.id} value={v.id}>
                                   {productName || 'Unnamed'} ({v.sku})

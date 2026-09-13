@@ -25,6 +25,11 @@ const productExtractionSchema: any = {
             description: 'The CLEAN commercial product name, explicitly without chemical composition, concentration, or formulation. Example: For "ISO-P ISOPROTHIOLANE 40% EC", extract ONLY "ISO-P". If you cannot confidently determine the commercial boundary, preserve the full original text and mark confidence as uncertain.',
             nullable: true,
           },
+          fullProductIdentity: {
+            type: SchemaType.STRING,
+            description: 'The COMPLETE commercial product identity EXACTLY as written on the invoice, combining the name, size, volume, weight, formulation, and concentration. (e.g. "DIAMOND Paddy Spl 1 Ltr"). Do NOT strip the size/measurement from this field.',
+            nullable: true,
+          },
           chemicalName: {
             type: SchemaType.STRING,
             description: 'The chemical name, active ingredient, or composition separated from the commercial name. E.g., "ISOPROTHIOLANE", "MANCOZEB".',
@@ -149,6 +154,7 @@ const productExtractionSchema: any = {
             type: SchemaType.OBJECT,
             description: 'For each key above, indicate if the AI is "certain" or "uncertain". If you are guessing, put "uncertain".',
             properties: {
+              fullProductIdentity: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               productName: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               chemicalName: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               concentration: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
@@ -161,11 +167,11 @@ const productExtractionSchema: any = {
               purchaseCost: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               purchaseQuantity: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] }
             },
-            required: ['productName', 'chemicalName', 'concentration', 'formulation', 'batchNumber', 'measurement', 'unitsPerPack', 'manufacturingDate', 'expiryDate', 'purchaseCost', 'purchaseQuantity']
+            required: ['fullProductIdentity', 'productName', 'chemicalName', 'concentration', 'formulation', 'batchNumber', 'measurement', 'unitsPerPack', 'manufacturingDate', 'expiryDate', 'purchaseCost', 'purchaseQuantity']
           }
         },
         required: [
-          'productName', 'manufacturer', 'brand', 'sku', 'barcode', 'batchNumber', 
+          'fullProductIdentity', 'productName', 'manufacturer', 'brand', 'sku', 'barcode', 'batchNumber', 
           'measurementValue', 'measurementUnit', 'packagingType', 'unitsPerPack', 
           'manufacturingDate', 'expiryDate', 'purchaseCost', 'purchaseQuantity', 'mrp', 'confidence'
         ]

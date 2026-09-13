@@ -71,6 +71,7 @@ export default async function PurchasesPage() {
       id,
       sku,
       selling_price,
+      attributes,
       product:products (
         name
       )
