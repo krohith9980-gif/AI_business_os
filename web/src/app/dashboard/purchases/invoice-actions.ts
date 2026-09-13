@@ -10,10 +10,16 @@ export type InvoicePurchaseItem = {
   category_id?: string
   sku?: string
   barcode?: string
-  purchase_cost: number
+  purchase_cost: number // Extracted/Derived Net Cost
   sale_cost: number
   quantity: number
   attributes?: Record<string, any>
+  package_quantity?: number
+  package_unit?: string
+  units_per_package?: number
+  gross_purchase_cost?: number
+  discount_percentage?: number
+  discount_amount?: number
 }
 
 export async function createInvoicePurchaseOrder(
@@ -26,7 +32,8 @@ export async function createInvoicePurchaseOrder(
   taxTotal: number = 0,
   amountPaid: number = 0,
   paymentMethod: string = 'CASH',
-  paymentReference: string = ''
+  paymentReference: string = '',
+  roundOff: number = 0
 ) {
   const supabase = await createClient()
 
@@ -47,7 +54,8 @@ export async function createInvoicePurchaseOrder(
       p_tax_total: taxTotal,
       p_amount_paid: amountPaid,
       p_payment_method: paymentMethod,
-      p_payment_reference: paymentReference || null
+      p_payment_reference: paymentReference || null,
+      p_round_off: roundOff
     })
 
     if (rpcError) {

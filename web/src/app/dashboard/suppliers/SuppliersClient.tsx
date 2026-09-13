@@ -56,7 +56,7 @@ export default function SuppliersClient({
   const [paymentTerms, setPaymentTerms] = useState('')
   const [notes, setNotes] = useState('')
   const [isActive, setIsActive] = useState(true)
-  const [openingBalance, setOpeningBalance] = useState<number>(0)
+  const [openingBalance, setOpeningBalance] = useState<string>('')
 
   const [existingAttributes, setExistingAttributes] = useState<any>({})
 
@@ -87,7 +87,7 @@ export default function SuppliersClient({
     setPaymentTerms('')
     setNotes('')
     setIsActive(true)
-    setOpeningBalance(0)
+    setOpeningBalance('')
     setError(null)
     setExistingAttributes({})
   }
@@ -146,6 +146,11 @@ export default function SuppliersClient({
     setError(null)
     const formData = new FormData(e.currentTarget)
     
+    const numericBalance = openingBalance === '' ? 0 : parseFloat(openingBalance)
+    if (isNaN(numericBalance) || numericBalance < 0) {
+      return setError('Opening balance must be 0 or a positive number')
+    }
+
     const attributes = {
       ...existingAttributes,
       contact_person: contactPerson,
@@ -155,6 +160,9 @@ export default function SuppliersClient({
     if (editingId) formData.append('id', editingId)
     formData.append('is_active', isActive ? 'true' : 'false')
     if (storeId) formData.append('storeId', storeId)
+    if (!editingId) {
+      formData.append('openingBalance', numericBalance.toString())
+    }
     
     startTransition(async () => {
       const result = editingId ? await editSupplier(formData) : await addSupplier(formData)
@@ -220,25 +228,25 @@ export default function SuppliersClient({
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Outstanding</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Added</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Outstanding</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Added</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {initialSuppliers.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500">No suppliers found.</td></tr>
+                <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-600">No suppliers found.</td></tr>
               ) : (
                 initialSuppliers.map((supplier) => (
                   <tr key={supplier.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{supplier.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{supplier.is_active ? 'Active' : 'Inactive'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{supplier.is_active ? 'Active' : 'Inactive'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                       {formatCurrency(supplier.outstanding_balance || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(supplier.created_at).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(supplier.created_at).toLocaleDateString()}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                       <button onClick={() => handleViewLedger(supplier)} className="text-indigo-600 hover:text-indigo-900">Ledger</button>
                       <button onClick={() => handleEdit(supplier)} className="text-gray-600 hover:text-gray-900">Edit</button>
@@ -257,25 +265,35 @@ export default function SuppliersClient({
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
               <h3 className="text-lg font-medium text-gray-900">{editingId ? 'Edit Supplier' : 'Add Supplier'}</h3>
-              <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="text-gray-400 hover:text-gray-500">&times;</button>
+              <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="text-gray-400 hover:text-gray-600">&times;</button>
             </div>
             <form onSubmit={handleFormSubmit} className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-              {/* Similar fields as original */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Supplier Name *</label>
-                <input type="text" name="name" required value={name} onChange={e => setName(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" />
+                <label className="block text-sm font-medium text-gray-900">Supplier Name *</label>
+                <input type="text" name="name" required value={name} onChange={e => setName(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
               </div>
               
               {!editingId && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Opening Balance (₹)</label>
-                  <p className="text-xs text-gray-500 mb-1">Optional. The existing payable amount owed to this supplier.</p>
-                  <input type="number" name="openingBalance" min="0" step="0.01" value={openingBalance} onChange={e => setOpeningBalance(parseFloat(e.target.value) || 0)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" />
+                  <label className="block text-sm font-medium text-gray-900">
+                    Opening Balance (₹)
+                  </label>
+                  <p className="text-xs text-gray-600 mb-1">Current existing payable balance</p>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    placeholder="0"
+                    value={openingBalance}
+                    onChange={e => setOpeningBalance(e.target.value)}
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  />
                 </div>
               )}
 
               {editingId && <div className="flex items-center"><input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600" /><label className="ml-2 text-sm text-gray-900">Active</label></div>}
-              <div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-700">Contact</label><input type="text" value={contactPerson} onChange={e => setContactPerson(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded px-2 py-1 text-sm" /></div><div><label className="block text-sm text-gray-700">Phone</label><input type="text" value={phone} onChange={e => setPhone(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded px-2 py-1 text-sm" /></div></div>
+              <div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-900">Contact</label><input type="text" value={contactPerson} onChange={e => setContactPerson(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded px-2 py-1 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" /></div><div><label className="block text-sm text-gray-900">Phone</label><input type="text" value={phone} onChange={e => setPhone(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded px-2 py-1 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" /></div></div>
               <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm bg-white border rounded">Cancel</button><button type="submit" disabled={isPending} className="px-4 py-2 text-sm text-white bg-indigo-600 rounded disabled:bg-indigo-400">{isPending ? 'Saving...' : 'Save'}</button></div>
             </form>
           </div>
@@ -288,7 +306,7 @@ export default function SuppliersClient({
           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
               <h3 className="text-lg font-medium text-gray-900">{activeSupplier.name} - Statement & Ledger</h3>
-              <button onClick={() => setIsLedgerOpen(false)} className="text-gray-400 hover:text-gray-500 text-2xl">&times;</button>
+              <button onClick={() => setIsLedgerOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-white">
@@ -304,7 +322,7 @@ export default function SuppliersClient({
                     Record Payment
                   </button>
                 ) : (
-                  <button onClick={() => setIsPaymentMode(false)} className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded text-sm hover:bg-gray-50 shadow-sm">
+                  <button onClick={() => setIsPaymentMode(false)} className="px-4 py-2 bg-white text-gray-900 border border-gray-300 rounded text-sm hover:bg-gray-50 shadow-sm">
                     Cancel Payment
                   </button>
                 )}
@@ -315,12 +333,12 @@ export default function SuppliersClient({
                   <h4 className="font-medium text-gray-900">Record General Supplier Payment</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
-                      <label className="block text-sm text-gray-700">Amount (₹)</label>
-                      <input type="number" min="0.01" step="0.01" required value={payAmount} onChange={e => setPayAmount(parseFloat(e.target.value)||0)} className="mt-1 w-full border rounded px-2 py-1" />
+                      <label className="block text-sm text-gray-900">Amount (₹)</label>
+                      <input type="number" min="0.01" step="0.01" required value={payAmount} onChange={e => setPayAmount(parseFloat(e.target.value)||0)} className="mt-1 w-full border rounded px-2 py-1 text-gray-900" />
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-700">Method</label>
-                      <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className="mt-1 w-full border rounded px-2 py-1">
+                      <label className="block text-sm text-gray-900">Method</label>
+                      <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className="mt-1 w-full border rounded px-2 py-1 text-gray-900">
                         <option value="CASH">CASH</option>
                         <option value="UPI">UPI</option>
                         <option value="CARD">CARD</option>
@@ -328,12 +346,12 @@ export default function SuppliersClient({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-700">Reference</label>
-                      <input type="text" value={payRef} onChange={e => setPayRef(e.target.value)} className="mt-1 w-full border rounded px-2 py-1" />
+                      <label className="block text-sm text-gray-900">Reference</label>
+                      <input type="text" value={payRef} onChange={e => setPayRef(e.target.value)} className="mt-1 w-full border rounded px-2 py-1 text-gray-900" />
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-700">Notes</label>
-                      <input type="text" value={payNotes} onChange={e => setPayNotes(e.target.value)} className="mt-1 w-full border rounded px-2 py-1" />
+                      <label className="block text-sm text-gray-900">Notes</label>
+                      <input type="text" value={payNotes} onChange={e => setPayNotes(e.target.value)} className="mt-1 w-full border rounded px-2 py-1 text-gray-900" />
                     </div>
                   </div>
                   <div className="flex justify-end">
@@ -348,23 +366,23 @@ export default function SuppliersClient({
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Debit (Purchase)</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Credit (Payment)</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Date</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Type</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Notes</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Debit (Purchase)</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Credit (Payment)</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Balance</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {isLoadingLedger ? (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Loading ledger...</td></tr>
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-600">Loading ledger...</td></tr>
                     ) : ledgerEntries.length === 0 ? (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">No transactions recorded yet.</td></tr>
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-600">No transactions recorded yet.</td></tr>
                     ) : (
                       ledgerEntries.map((entry) => (
                         <tr key={entry.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-2 text-sm text-gray-500">{new Date(entry.created_at).toLocaleString()}</td>
+                          <td className="px-4 py-2 text-sm text-gray-600">{new Date(entry.created_at).toLocaleString()}</td>
                           <td className="px-4 py-2 text-sm">
                             <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
                               entry.transaction_type === 'PURCHASE' ? 'bg-red-100 text-red-800' :
@@ -374,7 +392,7 @@ export default function SuppliersClient({
                               {entry.transaction_type}
                             </span>
                           </td>
-                          <td className="px-4 py-2 text-sm text-gray-500">{entry.notes}</td>
+                          <td className="px-4 py-2 text-sm text-gray-600">{entry.notes}</td>
                           <td className="px-4 py-2 text-sm text-red-600 text-right font-medium">
                             {entry.amount > 0 ? formatCurrency(entry.amount) : '-'}
                           </td>
