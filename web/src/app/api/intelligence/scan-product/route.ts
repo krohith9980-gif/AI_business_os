@@ -72,13 +72,48 @@ const productExtractionSchema: any = {
           },
           purchaseCost: {
             type: SchemaType.NUMBER,
-            description: 'If this is a supplier invoice, the cost or rate of the product. Otherwise null.',
+            description: 'If this is a supplier invoice, the net cost or rate of the product. Otherwise null.',
             nullable: true,
           },
           purchaseQuantity: {
             type: SchemaType.NUMBER,
-            description: 'If this is a supplier invoice, the number of units purchased (quantity). Otherwise null.',
+            description: 'If this is a supplier invoice, the total number of base units purchased (e.g. 40 Nos). Otherwise null.',
             nullable: true,
+          },
+          grossPurchaseCost: {
+            type: SchemaType.NUMBER,
+            description: 'If supplier invoice: the pre-discount rate or gross cost per unit (e.g. 875).',
+            nullable: true
+          },
+          lineDiscountPercentage: {
+            type: SchemaType.NUMBER,
+            description: 'If supplier invoice: the line discount percentage (e.g. 30 for 30%).',
+            nullable: true
+          },
+          lineDiscountAmount: {
+            type: SchemaType.NUMBER,
+            description: 'If supplier invoice: the TOTAL discount amount for this line (e.g. 10500). Do NOT output per-unit discount here.',
+            nullable: true
+          },
+          netPurchaseCost: {
+            type: SchemaType.NUMBER,
+            description: 'If supplier invoice: the final net cost per unit after discount (e.g. 612.50).',
+            nullable: true
+          },
+          packageQuantity: {
+            type: SchemaType.NUMBER,
+            description: 'If supplier invoice: the number of outer packages/boxes (e.g. 4).',
+            nullable: true
+          },
+          packageUnit: {
+            type: SchemaType.STRING,
+            description: 'If supplier invoice: the exact text for the package unit (e.g. "CTN", "PAC", "BOX"). DO NOT normalize.',
+            nullable: true
+          },
+          baseQuantity: {
+            type: SchemaType.NUMBER,
+            description: 'If supplier invoice: the total individual base items (e.g. 40).',
+            nullable: true
           },
           sku: {
             type: SchemaType.STRING,
@@ -219,6 +254,8 @@ CRITICAL RULES:
 6. Do not make any financial or pricing decisions. If purchase cost is not explicitly written on a package, return null (do not copy MRP).
 7. For agro products, aggressively extract and remove the chemical information (chemical name, concentration, formulation) from the productName, placing them in their respective fields.
 8. If the boundary between commercial product name and chemical is ambiguous or you are not sure what text is the commercial name, DO NOT SILENTLY DELETE TEXT. You must preserve the full text in productName and mark the productName confidence as "uncertain".
+9. INVOICE PACKAGING: If an invoice specifies packaging (e.g., "4 CTN, 40 Nos"), packageQuantity is 4, packageUnit is "CTN", baseQuantity is 40. DO NOT swap package quantity and base quantity. DO NOT normalize package unit (CTN MUST remain CTN, PAC MUST remain PAC). DO NOT GUESS unitsPerPack if it cannot be derived.
+10. INVOICE DISCOUNTS: If an invoice specifies a discount (e.g., 30%), extract it into lineDiscountPercentage and calculate the total lineDiscountAmount (gross rate * base quantity * discount%). DO NOT output per-unit discount.
 
 Extract the requested fields according to the strict JSON schema. If you are uncertain about a value, return null for it and mark confidence as 'uncertain'.
 `;
