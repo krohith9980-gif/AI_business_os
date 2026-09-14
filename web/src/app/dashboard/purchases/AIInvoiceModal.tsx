@@ -84,8 +84,10 @@ export default function AIInvoiceModal({
     for (const v of variants) {
       if (aiItem.sku && v.sku === aiItem.sku) return v.id
     }
-    const targetName = (aiItem.productName || '').toLowerCase()
-    const fullTargetName = (aiItem.fullProductIdentity || aiItem.productName || '').toLowerCase()
+    const targetName = (aiItem.productName || '').toLowerCase().trim()
+    const fullTargetName = (aiItem.fullProductIdentity || aiItem.productName || '').toLowerCase().trim()
+    
+    console.log(`[findBestMatch] AI Full Identity: "${fullTargetName}" | Base Identity: "${targetName}"`)
     
     if (!fullTargetName && !targetName) return ''
     
@@ -93,12 +95,25 @@ export default function AIInvoiceModal({
       const vName = getVariantName(v)
       if (!vName) continue
       
-      const vNameLower = vName.toLowerCase()
-      // Exact match against full identity
-      if (fullTargetName && vNameLower === fullTargetName) return v.id
-      // Exact match against base identity
-      if (targetName && vNameLower === targetName) return v.id
+      const vNameLower = vName.toLowerCase().trim()
+
+      // 1. Exact match against full identity
+      if (fullTargetName && vNameLower === fullTargetName) {
+        return v.id
+      }
+      
+      // 2. Exact match against base identity ONLY IF the AI didn't find any extra size/volume descriptors.
+      // If the invoice explicitly says "DIAMOND Paddy Spl 1 Ltr", but the DB only has "DIAMOND Paddy Spl",
+      // they are NOT a confident match because the DB variant is ambiguous or missing size info.
+      if (targetName && vNameLower === targetName) {
+        // Only allow fallback if the full identity is basically the same as the base identity
+        if (!fullTargetName || fullTargetName === targetName) {
+          return v.id
+        }
+      }
     }
+    
+    console.log(`[findBestMatch] No confident match for "${fullTargetName}". Forcing manual selection.`)
     return ''
   }
 
