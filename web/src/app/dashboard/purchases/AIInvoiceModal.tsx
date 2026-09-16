@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useMemo } from 'react'
+import React, { useState, useRef, useMemo, useTransition } from 'react'
 import { addSupplier } from '../suppliers/actions'
 import { formatCurrency } from '@/utils/currency'
 import { createInvoicePurchaseOrder, InvoicePurchaseItem } from './invoice-actions'
@@ -124,6 +124,7 @@ export default function AIInvoiceModal({
   const [draftItems, setDraftItems] = useState<DraftItem[]>([])
   const [idempotencyKey, setIdempotencyKey] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPending, startTransition] = useTransition()
   
   // Financial State
   const [invoiceDiscount, setInvoiceDiscount] = useState<number>(0)
@@ -133,7 +134,7 @@ export default function AIInvoiceModal({
   const [roundOff, setRoundOff] = useState<number>(0)
   
   const [paymentStatus, setPaymentStatus] = useState<'CREDIT' | 'PARTIALLY_PAID' | 'PAID'>('CREDIT')
-  const [amountPaid, setAmountPaid] = useState<number>(0)
+  const [amountPaid, setAmountPaid] = useState<string>('')
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH')
   const [aiInvoiceTotal, setAiInvoiceTotal] = useState<number | null>(null)
 
@@ -235,7 +236,7 @@ export default function AIInvoiceModal({
       setAiInvoiceTotal(data.invoiceTotal || null)
       setSupplierId('') // Require explicit selection
       setPaymentStatus('CREDIT')
-      setAmountPaid(0)
+      setAmountPaid('')
       
       setStep('review')
     } catch (err: any) {
@@ -277,9 +278,9 @@ export default function AIInvoiceModal({
 
   const handlePaymentStatusChange = (status: 'CREDIT' | 'PARTIALLY_PAID' | 'PAID') => {
     setPaymentStatus(status)
-    if (status === 'CREDIT') setAmountPaid(0)
-    if (status === 'PAID') setAmountPaid(finalPayable)
-    if (status === 'PARTIALLY_PAID' && amountPaid === 0) setAmountPaid(0)
+    if (status === 'CREDIT') setAmountPaid('')
+    if (status === 'PAID') setAmountPaid(finalPayable.toString())
+    if (status === 'PARTIALLY_PAID' && amountPaid === '') setAmountPaid('')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -299,58 +300,62 @@ export default function AIInvoiceModal({
       if (item.sale_cost === '' || Number(item.sale_cost) < 0) return setError('Sale cost is required and cannot be negative')
     }
 
+    const parsedAmountPaid = paymentStatus === 'CREDIT' ? 0 : (parseFloat(amountPaid) || 0)
+
     // Validate Financials
     if (invoiceDiscount < 0 || calculatedAdditionalDiscount < 0) return setError('Discounts cannot be negative.')
     if (taxTotal < 0) return setError('Tax cannot be negative.')
-    if (amountPaid < 0) return setError('Amount paid cannot be negative.')
-    if (amountPaid > finalPayable) return setError('Amount paid cannot exceed final payable amount.')
-    if (paymentStatus === 'PAID' && amountPaid !== finalPayable) return setError('PAID status requires amount paid to equal final payable.')
-    if (paymentStatus === 'CREDIT' && amountPaid !== 0) return setError('CREDIT status requires amount paid to be 0.')
-    if (paymentStatus === 'PARTIALLY_PAID' && (amountPaid <= 0 || amountPaid >= finalPayable)) return setError('PARTIALLY PAID requires amount between 0 and final payable.')
+    if (parsedAmountPaid < 0) return setError('Amount paid cannot be negative.')
+    if (parsedAmountPaid > finalPayable) return setError('Amount paid cannot exceed final payable amount.')
+    if (paymentStatus === 'PAID' && parsedAmountPaid !== finalPayable) return setError('PAID status requires amount paid to equal final payable.')
+    if (paymentStatus === 'CREDIT' && parsedAmountPaid !== 0) return setError('CREDIT status requires amount paid to be 0.')
+    if (paymentStatus === 'PARTIALLY_PAID' && (parsedAmountPaid <= 0 || parsedAmountPaid >= finalPayable)) return setError('PARTIALLY PAID requires amount between 0 and final payable.')
 
     setIsSubmitting(true)
     
-    try {
-      const payload: InvoicePurchaseItem[] = selectedItems.map(item => ({
-        is_new: item.is_new,
-        variant_id: item.is_new ? undefined : item.matched_variant_id,
-        product_name: item.is_new ? item.product_name : undefined,
-        sku: item.is_new ? item.sku : undefined,
-        barcode: item.is_new ? item.barcode : undefined,
-        purchase_cost: item.purchase_cost,
-        sale_cost: Number(item.sale_cost),
-        quantity: item.quantity,
-        package_quantity: item.package_quantity,
-        package_unit: item.package_unit,
-        units_per_package: item.units_per_package,
-        gross_purchase_cost: item.gross_purchase_cost || item.purchase_cost,
-        discount_percentage: item.discount_percentage,
-        discount_amount: item.discount_amount,
-        attributes: item.raw_ai_data
-      }))
+    startTransition(async () => {
+      try {
+        const payload: InvoicePurchaseItem[] = selectedItems.map(item => ({
+          is_new: item.is_new,
+          variant_id: item.is_new ? undefined : item.matched_variant_id,
+          product_name: item.is_new ? item.product_name : undefined,
+          sku: item.is_new ? item.sku : undefined,
+          barcode: item.is_new ? item.barcode : undefined,
+          purchase_cost: item.purchase_cost,
+          sale_cost: Number(item.sale_cost),
+          quantity: item.quantity,
+          package_quantity: item.package_quantity,
+          package_unit: item.package_unit,
+          units_per_package: item.units_per_package,
+          gross_purchase_cost: item.gross_purchase_cost || item.purchase_cost,
+          discount_percentage: item.discount_percentage,
+          discount_amount: item.discount_amount,
+          attributes: item.raw_ai_data
+        }))
 
-      const result = await createInvoicePurchaseOrder(
-        storeId, 
-        supplierId, 
-        idempotencyKey, 
-        payload,
-        invoiceDiscount,
-        calculatedAdditionalDiscount,
-        taxTotal,
-        amountPaid,
-        paymentMethod,
-        '',
-        roundOff
-      )
-      
-      if (result.error) throw new Error(result.error)
-      onSuccess()
-    } catch (err: any) {
-      console.error(err)
-      setError(err.message || 'Failed to save purchase')
-    } finally {
-      setIsSubmitting(false)
-    }
+        const result = await createInvoicePurchaseOrder(
+          storeId, 
+          supplierId, 
+          idempotencyKey, 
+          payload,
+          invoiceDiscount,
+          calculatedAdditionalDiscount,
+          taxTotal,
+          parsedAmountPaid,
+          paymentMethod,
+          '',
+          roundOff
+        )
+        
+        if (result.error) throw new Error(result.error)
+        onSuccess()
+      } catch (err: any) {
+        console.error(err)
+        setError(err.message || 'Failed to save purchase')
+      } finally {
+        setIsSubmitting(false)
+      }
+    })
   }
 
   if (!isOpen) return null
@@ -674,7 +679,8 @@ export default function AIInvoiceModal({
                         <input
                           type="number" min="0.01" step="0.01" max={finalPayable}
                           value={amountPaid}
-                          onChange={e => setAmountPaid(parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                          onChange={e => setAmountPaid(e.target.value)}
                           disabled={paymentStatus === 'PAID'}
                           className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white shadow-sm disabled:bg-gray-100"
                         />
@@ -698,7 +704,7 @@ export default function AIInvoiceModal({
                   {paymentStatus === 'PARTIALLY_PAID' && (
                     <div className="flex justify-between items-center mt-2 text-sm text-red-600 font-medium bg-red-50 p-2 rounded">
                       <span>Outstanding Remaining</span>
-                      <span>{formatCurrency(Math.max(0, finalPayable - amountPaid))}</span>
+                      <span>{formatCurrency(Math.max(0, finalPayable - (parseFloat(amountPaid) || 0)))}</span>
                     </div>
                   )}
                 </div>

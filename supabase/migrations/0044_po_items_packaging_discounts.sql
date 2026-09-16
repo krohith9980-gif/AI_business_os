@@ -125,7 +125,8 @@ BEGIN
         
         IF v_net_cost < 0 THEN RAISE EXCEPTION 'Net purchase cost cannot be negative'; END IF;
 
-        v_subtotal := v_subtotal + (v_quantity * v_net_cost);
+        -- Sum the EXACT net amount to prevent per-unit precision loss
+        v_subtotal := v_subtotal + ((v_quantity * v_gross_cost) - v_discount_amt);
     END LOOP;
 
     -- Calculate Grand Total (Net Subtotal - Invoice Discounts + Tax + Round Off)

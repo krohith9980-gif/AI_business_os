@@ -305,6 +305,10 @@ Extract the requested fields according to the strict JSON schema. If you are unc
     
     const extractedData = JSON.parse(responseText);
 
+    console.log("=== AI EXTRACTION RESULT ===");
+    console.log(JSON.stringify(extractedData.items, null, 2));
+    console.log("============================");
+
     return NextResponse.json(extractedData);
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : '';
