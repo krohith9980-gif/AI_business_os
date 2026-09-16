@@ -6,7 +6,7 @@ import { formatCurrency } from '@/utils/currency'
 import { createInvoicePurchaseOrder, InvoicePurchaseItem } from './invoice-actions'
 
 type Supplier = { id: string; name: string }
-type Variant = { id: string; sku: string; selling_price: number; attributes?: any; product?: { name: string } | { name: string }[] | null }
+type Variant = { id: string; sku: string | null; selling_price: number; attributes?: any; product?: { name: string } | { name: string }[] | null }
 
 
 function getVariantName(v: Variant): string {
@@ -14,9 +14,11 @@ function getVariantName(v: Variant): string {
   if (!v.attributes) return baseName;
   
   // Extract sizing or volume attributes if they exist
-  const sizeStr = v.attributes.size || v.attributes.volume || v.attributes.weight || v.attributes.measurement || v.attributes.variant || '';
-  if (sizeStr && typeof sizeStr === 'string' && !baseName.toLowerCase().includes(sizeStr.toLowerCase())) {
-    return `${baseName} ${sizeStr}`;
+  const sizeStr = v.attributes.measurementValue ? `${v.attributes.measurementValue} ${v.attributes.measurementUnit || ''}`.trim() : '';
+  const packStr = v.attributes.unitsPerPackage || v.attributes.unitsPerPack ? `${v.attributes.unitsPerPackage || v.attributes.unitsPerPack} X ` : '';
+  
+  if (sizeStr) {
+    return `${baseName} ${packStr}${sizeStr}`.trim();
   }
   return baseName;
 }
@@ -26,8 +28,8 @@ type DraftItem = {
   is_new: boolean
   matched_variant_id: string
   product_name: string
-  sku: string
-  barcode: string
+  sku: string | null
+  barcode: string | null
   purchase_cost: number
   sale_cost: number | ''
   quantity: number
@@ -37,6 +39,9 @@ type DraftItem = {
   gross_purchase_cost?: number
   discount_percentage?: number
   discount_amount?: number
+  batch_number?: string
+  mfg_date?: string
+  expiry_date?: string
   raw_ai_data: any
 }
 
@@ -92,7 +97,7 @@ export default function AIInvoiceModal({
       formData.append('openingBalance', '0')
       
       const attributes = {
-        contact: newSupplierContact.trim(),
+        contact_person: newSupplierContact.trim(),
         phone: newSupplierPhone.trim()
       }
       formData.append('attributes', JSON.stringify(attributes))
@@ -147,35 +152,46 @@ export default function AIInvoiceModal({
       if (aiItem.sku && v.sku === aiItem.sku) return v.id
     }
     const targetName = (aiItem.productName || '').toLowerCase().trim()
-    const fullTargetName = (aiItem.fullProductIdentity || aiItem.productName || '').toLowerCase().trim()
     
-    console.log(`[findBestMatch] AI Full Identity: "${fullTargetName}" | Base Identity: "${targetName}"`)
-    
-    if (!fullTargetName && !targetName) return ''
+    if (!targetName) return ''
     
     for (const v of variants) {
-      const vName = getVariantName(v)
+      const vName = (Array.isArray(v.product) ? v.product[0]?.name : v.product?.name || '').toLowerCase().trim()
       if (!vName) continue
       
-      const vNameLower = vName.toLowerCase().trim()
+      // 1. Strict match on commercial base name
+      if (vName === targetName) {
+         // Also verify measurement & chemical matching if variants have them
+         const aiMeasurementValue = aiItem.measurementValue
+         const aiUnitsPerPack = aiItem.unitsPerPack
+         
+         const vAttrs = v.attributes || {}
+         const vMeasurementValue = vAttrs.measurementValue
+         const vUnitsPerPack = vAttrs.unitsPerPackage || vAttrs.unitsPerPack
+         
+         // Fail closed if AI extracted a dimension but DB is missing it, or if they differ
+         if (aiMeasurementValue && Number(aiMeasurementValue) !== Number(vMeasurementValue)) continue;
+         if (aiUnitsPerPack && Number(aiUnitsPerPack) !== Number(vUnitsPerPack)) continue;
+         
+         // Consider chemical properties if we have them
+         const aiChemical = aiItem.chemicalName?.toLowerCase()?.trim()
+         const vChemical = vAttrs.chemicalName?.toLowerCase()?.trim()
+         if (aiChemical && aiChemical !== vChemical) continue;
+         
+         // If ai extracted concentration/formulation, ensure DB matches them too
+         const aiConcentration = aiItem.concentration?.toLowerCase()?.trim()
+         const vConcentration = vAttrs.concentration?.toLowerCase()?.trim()
+         if (aiConcentration && aiConcentration !== vConcentration) continue;
 
-      // 1. Exact match against full identity
-      if (fullTargetName && vNameLower === fullTargetName) {
-        return v.id
-      }
-      
-      // 2. Exact match against base identity ONLY IF the AI didn't find any extra size/volume descriptors.
-      // If the invoice explicitly says "DIAMOND Paddy Spl 1 Ltr", but the DB only has "DIAMOND Paddy Spl",
-      // they are NOT a confident match because the DB variant is ambiguous or missing size info.
-      if (targetName && vNameLower === targetName) {
-        // Only allow fallback if the full identity is basically the same as the base identity
-        if (!fullTargetName || fullTargetName === targetName) {
-          return v.id
-        }
+         const aiFormulation = aiItem.formulation?.toLowerCase()?.trim()
+         const vFormulation = vAttrs.formulation?.toLowerCase()?.trim()
+         if (aiFormulation && aiFormulation !== vFormulation) continue;
+
+         return v.id
       }
     }
     
-    console.log(`[findBestMatch] No confident match for "${fullTargetName}". Forcing manual selection.`)
+    console.log(`[findBestMatch] No confident match for "${targetName}". Forcing manual selection.`)
     return ''
   }
 
@@ -213,19 +229,30 @@ export default function AIInvoiceModal({
           selected: true,
           is_new: !matchedVariantId,
           matched_variant_id: matchedVariantId,
-          product_name: item.fullProductIdentity || item.productName || '',
-          sku: item.sku || '',
-          barcode: item.barcode || '',
+          product_name: item.productName || '',
+          sku: item.sku || null,
+          barcode: item.barcode || null,
           purchase_cost: item.netPurchaseCost || item.purchaseCost || 0,
           sale_cost: matchedVariant ? matchedVariant.selling_price : '',
           quantity: item.baseQuantity || item.purchaseQuantity || item.measurementValue || 1,
           package_quantity: item.packageQuantity || undefined,
           package_unit: item.packageUnit || undefined,
-          units_per_package: (item.baseQuantity && item.packageQuantity && item.packageQuantity > 0) ? (item.baseQuantity / item.packageQuantity) : (item.unitsPerPack || undefined),
+          units_per_package: item.unitsPerPack || undefined,
           gross_purchase_cost: item.grossPurchaseCost || item.purchaseCost || 0,
           discount_percentage: item.lineDiscountPercentage || 0,
           discount_amount: item.lineDiscountAmount || 0,
-          raw_ai_data: item
+          batch_number: item.batchNumber || undefined,
+          mfg_date: item.manufacturingDate || undefined,
+          expiry_date: item.expiryDate || undefined,
+          raw_ai_data: {
+            ...item,
+            chemicalName: item.chemicalName || undefined,
+            concentration: item.concentration || undefined,
+            formulation: item.formulation || undefined,
+            measurementValue: item.measurementValue || undefined,
+            measurementUnit: item.measurementUnit || undefined,
+            unitsPerPackage: item.unitsPerPack || undefined
+          }
         }
       })
 
@@ -330,6 +357,9 @@ export default function AIInvoiceModal({
           gross_purchase_cost: item.gross_purchase_cost || item.purchase_cost,
           discount_percentage: item.discount_percentage,
           discount_amount: item.discount_amount,
+          batch_number: item.batch_number,
+          mfg_date: item.mfg_date,
+          expiry_date: item.expiry_date,
           attributes: item.raw_ai_data
         }))
 
@@ -490,37 +520,44 @@ export default function AIInvoiceModal({
                                 value={item.is_new ? 'NEW' : item.matched_variant_id}
                                 onChange={e => handleMatchChange(item.id, e.target.value)}
                                 disabled={!item.selected}
-                                className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-900"
+                                className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-900 font-bold"
                               >
                                 <option value="NEW" className="font-bold text-indigo-600">+ Create New Product</option>
                                 <optgroup label="Existing Products">
                                   {variants.map(v => {
                                     const vName = getVariantName(v)
-                                    return <option key={v.id} value={v.id}>{vName} ({v.sku})</option>
+                                    return <option key={v.id} value={v.id}>{vName} {v.sku ? `(${v.sku})` : ''}</option>
                                   })}
                                 </optgroup>
                               </select>
                               
                               {item.is_new && (
-                                <input
-                                  type="text"
-                                  value={item.product_name}
-                                  onChange={e => handleUpdateItem(item.id, 'product_name', e.target.value)}
-                                  disabled={!item.selected}
-                                  placeholder="New Product Name"
-                                  required={item.is_new && item.selected}
-                                  className="mt-2 block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-900"
-                                />
+                                <div className="mt-3 space-y-2">
+                                  <input
+                                    type="text"
+                                    value={item.product_name}
+                                    onChange={e => handleUpdateItem(item.id, 'product_name', e.target.value)}
+                                    disabled={!item.selected}
+                                    placeholder="New Product Name"
+                                    required={item.is_new && item.selected}
+                                    className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-900"
+                                  />
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <input type="text" value={item.raw_ai_data?.chemicalName || ''} readOnly className="block w-full rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 bg-gray-50" placeholder="Chemical" title="Chemical Name" />
+                                    <input type="text" value={item.raw_ai_data?.concentration || ''} readOnly className="block w-full rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 bg-gray-50" placeholder="Conc." title="Concentration" />
+                                    <input type="text" value={item.raw_ai_data?.formulation || ''} readOnly className="block w-full rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 bg-gray-50" placeholder="Form." title="Formulation" />
+                                  </div>
+                                </div>
                               )}
                             </div>
                             
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-4 gap-2">
                               <div>
                                 <label className="block text-xs font-medium text-gray-900 mb-1">Pkg Qty</label>
                                 <input type="number" min="0" step="0.01" value={item.package_quantity || ''} onChange={e => handleUpdateItem(item.id, 'package_quantity', parseFloat(e.target.value))} disabled={!item.selected} className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm disabled:bg-gray-100 disabled:text-gray-900" />
                               </div>
                               <div>
-                                <label className="block text-xs font-medium text-gray-900 mb-1">Pkg Unit</label>
+                                <label className="block text-xs font-medium text-gray-900 mb-1">Package</label>
                                 <input type="text" value={item.package_unit || ''} onChange={e => handleUpdateItem(item.id, 'package_unit', e.target.value)} disabled={!item.selected} placeholder="e.g. CTN" className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm disabled:bg-gray-100 disabled:text-gray-900" />
                               </div>
                               <div>
@@ -530,6 +567,10 @@ export default function AIInvoiceModal({
                                   handleUpdateItem(item.id, 'units_per_package', up);
                                   if (item.package_quantity && up) handleUpdateItem(item.id, 'quantity', item.package_quantity * up);
                                 }} disabled={!item.selected} className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm disabled:bg-gray-100 disabled:text-gray-900" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-900 mb-1">Unit Size</label>
+                                <input type="text" value={item.raw_ai_data?.measurementValue ? `${item.raw_ai_data.measurementValue} ${item.raw_ai_data.measurementUnit || ''}`.trim() : ''} readOnly disabled className="block w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs text-gray-500 bg-gray-50" title="Unit Size" />
                               </div>
                             </div>
                           </div>
@@ -570,6 +611,21 @@ export default function AIInvoiceModal({
                             <div>
                               <label className="block text-xs font-medium text-gray-900 mb-1">Sale Cost</label>
                               <input type="number" min="0" step="0.01" value={item.sale_cost} onChange={e => handleUpdateItem(item.id, 'sale_cost', e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))} disabled={!item.selected} required={item.selected} className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm disabled:bg-gray-100 disabled:text-gray-900" />
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-900 mb-1">Batch / Lot No</label>
+                              <input type="text" value={item.batch_number || ''} onChange={e => handleUpdateItem(item.id, 'batch_number', e.target.value)} disabled={!item.selected} className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm disabled:bg-gray-100 disabled:text-gray-900" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-900 mb-1">Mfg Date</label>
+                              <input type="date" value={item.mfg_date || ''} onChange={e => handleUpdateItem(item.id, 'mfg_date', e.target.value)} disabled={!item.selected} className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm disabled:bg-gray-100 disabled:text-gray-900" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-900 mb-1">Expiry Date</label>
+                              <input type="date" value={item.expiry_date || ''} onChange={e => handleUpdateItem(item.id, 'expiry_date', e.target.value)} disabled={!item.selected} className="block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 bg-white shadow-sm disabled:bg-gray-100 disabled:text-gray-900" />
                             </div>
                           </div>
                         </div>

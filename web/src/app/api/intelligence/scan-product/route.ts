@@ -22,12 +22,12 @@ const productExtractionSchema: any = {
         properties: {
           productName: {
             type: SchemaType.STRING,
-            description: 'The CLEAN commercial product name, explicitly without chemical composition, concentration, or formulation. Example: For "ISO-P ISOPROTHIOLANE 40% EC", extract ONLY "ISO-P". If you cannot confidently determine the commercial boundary, preserve the full original text and mark confidence as uncertain.',
+            description: 'The CLEAN commercial product name, explicitly without chemical composition, concentration, formulation, package text, or measurement text. Example: For "ISO-P ISOPROTHIOLANE 40% EC 20 X 500 ML", extract ONLY "ISO-P". If you cannot confidently determine the commercial boundary, preserve the text but strip out chemicals and measurements. DO NOT include chemicals.',
             nullable: true,
           },
           fullProductIdentity: {
             type: SchemaType.STRING,
-            description: 'The COMPLETE commercial product identity EXACTLY as written on the invoice, combining the name, size, volume, weight, formulation, and concentration. (e.g. "DIAMOND Paddy Spl 1 Ltr"). Do NOT strip the size/measurement from this field.',
+            description: 'The COMPLETE commercial product identity EXACTLY as written on the invoice. Must preserve brand, chemical, concentration, formulation, measurement, and pack configuration (e.g., "JUMP 4.9 (Lambda Cyhalothrin 4.9% CS) 20 X 500 ML"). Do NOT strip the size or multipack string from this field.',
             nullable: true,
           },
           chemicalName: {
@@ -57,7 +57,7 @@ const productExtractionSchema: any = {
           },
           batchNumber: {
             type: SchemaType.STRING,
-            description: 'The manufacturing Batch No. or Lot No.',
+            description: 'The manufacturing Batch No. or Lot No. (e.g. "SCPL25031"). Extract EXACTLY what is printed. Do NOT invent a batch number if none is visible.',
             nullable: true,
           },
           manufacturingDate: {
@@ -107,22 +107,22 @@ const productExtractionSchema: any = {
           },
           packageQuantity: {
             type: SchemaType.NUMBER,
-            description: 'If supplier invoice: the number of outer packages/boxes (e.g. 4).',
+            description: 'If supplier invoice: the number of outer packages/boxes (e.g. 2). NEVER confuse this with the multipack size. For "20 X 500 ML, 2 Cases", packageQuantity is 2.',
             nullable: true
           },
           packageUnit: {
             type: SchemaType.STRING,
-            description: 'If supplier invoice: the exact text for the package unit (e.g. "CTN", "PAC", "BOX"). DO NOT normalize.',
+            description: 'If supplier invoice: the exact text for the package unit (e.g. "CASES", "CTN", "BOX"). DO NOT normalize.',
             nullable: true
           },
           baseQuantity: {
             type: SchemaType.NUMBER,
-            description: 'If supplier invoice: the total individual base items (e.g. 40).',
+            description: 'If supplier invoice: the total individual base items inside all packages (e.g. 40). Server will validate packageQuantity * unitsPerPack = baseQuantity.',
             nullable: true
           },
           sku: {
             type: SchemaType.STRING,
-            description: 'The internal SKU or Article No. if visible. Mostly null for retail boxes.',
+            description: 'The internal SKU or Article No. MUST be left null unless a real article number/SKU is unequivocally visible. NEVER invent a SKU. No AUTO- or SYS- SKUs.',
             nullable: true,
           },
           barcode: {
@@ -132,12 +132,12 @@ const productExtractionSchema: any = {
           },
           measurementValue: {
             type: SchemaType.NUMBER,
-            description: 'The net quantity numeric part. E.g., for "500 ML", this is 500.',
+            description: 'The net quantity numeric part for EACH INDIVIDUAL BASE UNIT. E.g., for "20 X 500 ML", this is 500. DO NOT multiply this by the base quantity.',
             nullable: true,
           },
           measurementUnit: {
             type: SchemaType.STRING,
-            description: 'The net quantity unit part. One of "G", "KG", "ML", "L", "PCS".',
+            description: 'The net quantity unit part for EACH INDIVIDUAL BASE UNIT. One of "G", "KG", "ML", "L", "LTR", "PCS".',
             nullable: true,
           },
           packagingType: {
@@ -147,7 +147,7 @@ const productExtractionSchema: any = {
           },
           unitsPerPack: {
             type: SchemaType.NUMBER,
-            description: 'If it is a box containing multiple bottles, how many bottles are inside? Default to 1.',
+            description: 'The number of individual items inside ONE package (e.g., for "20 X 500 ML", unitsPerPack is 20). NEVER output 20 as the packageQuantity.',
             nullable: true,
           },
           confidence: {
