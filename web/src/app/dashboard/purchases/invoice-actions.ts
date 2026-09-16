@@ -8,8 +8,8 @@ export type InvoicePurchaseItem = {
   variant_id?: string
   product_name?: string
   category_id?: string
-  sku?: string
-  barcode?: string
+  sku?: string | null
+  barcode?: string | null
   purchase_cost: number // Extracted/Derived Net Cost
   sale_cost: number
   quantity: number
