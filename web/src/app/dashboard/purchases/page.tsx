@@ -33,7 +33,7 @@ export default async function PurchasesPage() {
   const organizationId = Array.isArray(userStore.stores) ? userStore.stores[0]?.organization_id : (userStore.stores as any)?.organization_id
 
   // 2. Fetch recent purchases
-  const { data: purchases } = await supabase
+  const { data: purchases, error: purchasesError } = await supabase
     .from('purchase_orders')
     .select(`
       id,
@@ -42,7 +42,7 @@ export default async function PurchasesPage() {
       grand_total,
       payment_status,
       amount_paid,
-      po_items (
+      po_items!po_items_po_id_fkey (
         id,
         quantity_ordered,
         purchase_cost
@@ -55,6 +55,11 @@ export default async function PurchasesPage() {
     .eq('organization_id', organizationId)
     .order('created_at', { ascending: false })
     .limit(50)
+
+  if (purchasesError) {
+    console.error("Purchases query error:", purchasesError)
+    throw new Error("Failed to load purchases")
+  }
 
   // 3. Fetch active suppliers
   const { data: suppliers } = await supabase
