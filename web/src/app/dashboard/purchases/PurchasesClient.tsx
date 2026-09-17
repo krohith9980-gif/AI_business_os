@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useTransition, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createPurchaseOrder } from './actions'
 import { formatCurrency } from '@/utils/currency'
 import AIInvoiceModal from './AIInvoiceModal'
@@ -12,7 +13,7 @@ type PurchaseItem = {
 }
 
 type Supplier = { id: string; name: string }
-type Variant = { id: string; sku: string; selling_price: number; attributes?: any; product?: { name: string } | { name: string }[] | null }
+type Variant = { id: string; sku: string | null; selling_price: number; attributes?: any; product?: { name: string } | { name: string }[] | null }
 
 function getVariantName(v: Variant): string {
   const baseName = Array.isArray(v.product) ? v.product[0]?.name : v.product?.name || '';
@@ -42,6 +43,7 @@ export default function PurchasesClient({
   const [isAiModalOpen, setIsAiModalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
 
   // Form State
   const [supplierId, setSupplierId] = useState('')
@@ -103,10 +105,9 @@ export default function PurchasesClient({
       if (result?.error) {
         setError(result.error)
       } else if (result?.success) {
-        // Optimistically add to UI, but in a real app we'd rely on revalidatePath
-        // Just close modal and reset key
         setIsModalOpen(false)
-        setIdempotencyKey('') 
+        setIdempotencyKey('')
+        router.refresh()
       }
     })
   }
@@ -239,7 +240,7 @@ export default function PurchasesClient({
                               const productName = getVariantName(v);
                               return (
                                 <option key={v.id} value={v.id}>
-                                  {productName || 'Unnamed'} ({v.sku})
+                                  {productName || 'Unnamed'} {v.sku ? `(${v.sku})` : ''}
                                 </option>
                               );
                             })}
@@ -315,7 +316,7 @@ export default function PurchasesClient({
         onClose={() => setIsAiModalOpen(false)}
         onSuccess={() => {
           setIsAiModalOpen(false)
-          // In a real app we'd refresh data here, relying on revalidatePath for now
+          router.refresh()
         }}
         suppliers={suppliers}
         variants={variants}
