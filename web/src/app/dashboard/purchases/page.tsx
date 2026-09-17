@@ -57,9 +57,16 @@ export default async function PurchasesPage() {
     .limit(50)
 
   if (purchasesError) {
-    console.error("Purchases query error:", purchasesError)
-    throw new Error("Failed to load purchases")
+    console.error("[PURCHASE DEBUG] Purchases query error:", purchasesError)
   }
+
+  console.log('[PURCHASE DEBUG]', {
+    organizationId,
+    storeId,
+    queryError: purchasesError?.message || purchasesError,
+    rawCount: purchases?.length ?? null,
+    rawIds: purchases?.map((p: any) => p.id) ?? [],
+  })
 
   // 3. Fetch active suppliers
   const { data: suppliers } = await supabase
@@ -100,6 +107,8 @@ export default async function PurchasesPage() {
       total
     }
   }) || []
+
+  console.log('[PURCHASE DEBUG] mappedCount', formattedPurchases.length)
 
   return (
     <PurchasesClient 
