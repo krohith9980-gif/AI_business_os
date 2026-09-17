@@ -4,7 +4,121 @@
 ALTER TABLE public.sale_items ADD COLUMN batch_number TEXT;
 ALTER TABLE public.inventory_reservations ADD COLUMN batch_number TEXT;
 
--- 2. Create View for Batch Available Stock
+-- 2. Add disposition to inventory_movements for accurate batch calculations
+-- Without this, aggregating customer_return movements would risk counting DAMAGED goods as sellable batch stock.
+ALTER TABLE public.inventory_movements ADD COLUMN disposition public.return_disposition;
+
+-- 3. Update Inventory Movement RPC to persist disposition in the ledger and restore 0037 security checks
+CREATE OR REPLACE FUNCTION public.record_inventory_movement(
+    p_store_id UUID,
+    p_variant_id UUID,
+    p_movement_type public.movement_type,
+    p_quantity INTEGER,
+    p_reference_id UUID,
+    p_notes TEXT DEFAULT NULL,
+    p_disposition public.return_disposition DEFAULT 'RESELLABLE',
+    p_batch_number TEXT DEFAULT NULL,
+    p_mfg_date DATE DEFAULT NULL,
+    p_expiry_date DATE DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_balance RECORD;
+    v_org_id UUID;
+    v_active_reservations NUMERIC;
+    v_available_stock NUMERIC;
+    v_movement_id UUID;
+    v_variant RECORD;
+BEGIN
+    SELECT organization_id INTO v_org_id FROM public.stores WHERE id = p_store_id;
+    IF v_org_id IS NULL THEN RAISE EXCEPTION 'Store not found'; END IF;
+    IF NOT public.is_store_member(p_store_id) AND NOT public.is_org_manager_or_owner(v_org_id) THEN 
+        IF auth.uid() IS NOT NULL THEN
+            RAISE EXCEPTION 'Unauthorized to modify inventory in this store';
+        END IF;
+    END IF;
+    
+    -- Lookup variant to ensure it exists and belongs to the same organization
+    SELECT v.*
+    INTO v_variant
+    FROM public.product_variants v
+    JOIN public.products p
+      ON v.product_id = p.id
+    WHERE v.id = p_variant_id
+      AND p.organization_id = v_org_id
+    FOR SHARE;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Variant not found or does not belong to your organization';
+    END IF;
+
+    SELECT * INTO v_balance FROM public.inventory_balances 
+    WHERE store_id = p_store_id AND variant_id = p_variant_id FOR UPDATE;
+
+    IF NOT FOUND THEN
+        INSERT INTO public.inventory_balances (store_id, organization_id, variant_id, on_hand_stock, incoming_stock, damaged_stock)
+        VALUES (p_store_id, v_org_id, p_variant_id, 0, 0, 0)
+        RETURNING * INTO v_balance;
+    END IF;
+
+    SELECT COALESCE(SUM(quantity), 0) INTO v_active_reservations 
+    FROM public.inventory_reservations 
+    WHERE store_id = p_store_id AND variant_id = p_variant_id AND status = 'ACTIVE' AND expires_at > NOW();
+    
+    v_available_stock := v_balance.on_hand_stock - v_active_reservations;
+
+    CASE p_movement_type
+        WHEN 'opening_stock' THEN
+            UPDATE public.inventory_balances SET on_hand_stock = on_hand_stock + p_quantity WHERE id = v_balance.id;
+        WHEN 'purchase_received' THEN
+            UPDATE public.inventory_balances SET on_hand_stock = on_hand_stock + p_quantity, incoming_stock = GREATEST(0, incoming_stock - p_quantity) WHERE id = v_balance.id;
+        WHEN 'customer_return' THEN
+            IF p_disposition = 'RESELLABLE' THEN
+                UPDATE public.inventory_balances SET on_hand_stock = on_hand_stock + p_quantity WHERE id = v_balance.id;
+            ELSE
+                UPDATE public.inventory_balances SET damaged_stock = damaged_stock + p_quantity WHERE id = v_balance.id;
+            END IF;
+        WHEN 'transfer_in' THEN
+            UPDATE public.inventory_balances SET on_hand_stock = on_hand_stock + p_quantity WHERE id = v_balance.id;
+        WHEN 'sale' THEN
+            IF v_available_stock < p_quantity THEN RAISE EXCEPTION 'Insufficient available stock for sale'; END IF;
+            UPDATE public.inventory_balances SET on_hand_stock = on_hand_stock - p_quantity WHERE id = v_balance.id;
+        WHEN 'supplier_return' THEN
+            IF v_available_stock < p_quantity THEN RAISE EXCEPTION 'Insufficient available stock for supplier return'; END IF;
+            UPDATE public.inventory_balances SET on_hand_stock = on_hand_stock - p_quantity WHERE id = v_balance.id;
+        WHEN 'transfer_out' THEN
+            IF v_available_stock < p_quantity THEN RAISE EXCEPTION 'Insufficient available stock for transfer out'; END IF;
+            UPDATE public.inventory_balances SET on_hand_stock = on_hand_stock - p_quantity WHERE id = v_balance.id;
+        WHEN 'damage' THEN
+            IF v_available_stock < p_quantity THEN RAISE EXCEPTION 'Insufficient available stock to mark as damaged'; END IF;
+            UPDATE public.inventory_balances SET on_hand_stock = on_hand_stock - p_quantity, damaged_stock = damaged_stock + p_quantity WHERE id = v_balance.id;
+        WHEN 'adjustment' THEN
+            UPDATE public.inventory_balances SET on_hand_stock = on_hand_stock + p_quantity WHERE id = v_balance.id;
+        WHEN 'correction' THEN
+            UPDATE public.inventory_balances SET on_hand_stock = on_hand_stock - p_quantity WHERE id = v_balance.id;
+        ELSE RAISE EXCEPTION 'Unknown movement type';
+    END CASE;
+
+    INSERT INTO public.inventory_movements (
+        store_id, variant_id, movement_type, quantity, reference_id, notes, created_by, 
+        batch_number, mfg_date, expiry_date, disposition
+    )
+    VALUES (
+        p_store_id, p_variant_id, p_movement_type, p_quantity, p_reference_id, p_notes, auth.uid(),
+        p_batch_number, p_mfg_date, p_expiry_date,
+        CASE WHEN p_movement_type = 'customer_return' THEN p_disposition ELSE NULL END
+    )
+    RETURNING id INTO v_movement_id;
+
+    RETURN v_movement_id;
+END;
+$$;
+
+-- 4. Create View for Batch Available Stock
 -- Safely groups by batch identity: store_id + variant_id + batch_number
 -- MFG and EXP dates are metadata (using MAX to avoid splitting same batch rows)
 -- Also subtracts active reservations for the specific batch.
@@ -18,10 +132,9 @@ WITH batch_movements AS (
         MAX(expiry_date) as expiry_date,
         SUM(
             CASE 
-                WHEN movement_type IN ('opening_stock', 'purchase_received', 'transfer_in') THEN quantity
+                WHEN movement_type IN ('opening_stock', 'purchase_received', 'transfer_in', 'adjustment') THEN quantity
                 WHEN movement_type = 'customer_return' AND disposition = 'RESELLABLE' THEN quantity
-                WHEN movement_type IN ('sale', 'supplier_return', 'damage', 'transfer_out') THEN -quantity
-                WHEN movement_type IN ('adjustment', 'correction') THEN quantity 
+                WHEN movement_type IN ('sale', 'supplier_return', 'damage', 'transfer_out', 'correction') THEN -quantity
                 ELSE 0
             END
         ) as on_hand_stock
