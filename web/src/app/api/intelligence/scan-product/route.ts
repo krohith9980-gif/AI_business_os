@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Prepare AI request with Model Fallback
-    const fallbackModels = ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.8-flash'];
+    const fallbackModels = ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash', 'gemini-3.5-flash'];
     const maxAttemptsPerModel = 3;
     let result;
     let successfulModel = '';
