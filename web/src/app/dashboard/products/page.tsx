@@ -105,10 +105,7 @@ export default async function ProductsPage({
       .eq('organization_id', activeOrgId)
       .order('created_at', { ascending: false })
 
-    if (query) {
-      // filtering by SKU
-      supabaseQuery = supabaseQuery.ilike('sku', `%${query}%`)
-    }
+    // Client-side search filters the products now.
 
     const { data, error } = await supabaseQuery
     if (error) console.error('Error fetching variants', error)

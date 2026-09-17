@@ -155,9 +155,6 @@ export default function ProductsClient({
     if (product.attributes) {
       setBrand(product.attributes.brand || '')
       setManufacturer(product.attributes.manufacturer || '')
-      setBatchNumber(product.attributes.batchNumber || '')
-      setManufacturingDate(product.attributes.manufacturingDate || '')
-      setExpiryDate(product.attributes.expiryDate || '')
       setChemicalName(product.attributes.chemicalName || '')
       setConcentration(product.attributes.concentration || '')
       setFormulation(product.attributes.formulation || '')
@@ -195,16 +192,6 @@ export default function ProductsClient({
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setSearch(val)
-    
-    startTransition(() => {
-      const url = new URL(window.location.href)
-      if (val) {
-        url.searchParams.set('q', val)
-      } else {
-        url.searchParams.delete('q')
-      }
-      router.push(url.pathname + url.search)
-    })
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -383,7 +370,7 @@ export default function ProductsClient({
             type="text"
             value={search}
             onChange={handleSearch}
-            placeholder="Search products by SKU..."
+            placeholder="Search products by name or batch number..."
             className="w-full sm:max-w-md px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
           />
           {stores.length > 0 && (
@@ -424,7 +411,21 @@ export default function ProductsClient({
                   </td>
                 </tr>
               ) : (
-                initialProducts.map((p) => {
+                initialProducts.filter(p => {
+                  if (!search) return true;
+                  const lowerQuery = search.toLowerCase();
+                  if (p.name.toLowerCase().includes(lowerQuery)) return true;
+                  if (p.sku && p.sku.toLowerCase().includes(lowerQuery)) return true;
+                  if (p.barcode && p.barcode.toLowerCase().includes(lowerQuery)) return true;
+                  const matchingBatches = inventory.filter(i => 
+                     i.variant_id === p.id && 
+                     i.store_id === selectedStoreId && 
+                     i.batch_number && 
+                     i.batch_number.toLowerCase().includes(lowerQuery)
+                  );
+                  if (matchingBatches.length > 0) return true;
+                  return false;
+                }).map((p) => {
                   const batches = inventory.filter(i => i.variant_id === p.id && i.store_id === selectedStoreId)
                   const totalStock = batches.reduce((sum, b) => sum + b.available_stock, 0)
                   const isExpanded = expandedRows.has(p.id)
