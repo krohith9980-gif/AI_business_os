@@ -237,14 +237,12 @@ export async function POST(req: NextRequest) {
        return NextResponse.json({ error: 'Image size exceeds maximum allowed limit' }, { status: 400 });
     }
 
-    // 3. Prepare AI request
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-3.6-flash',
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: productExtractionSchema
-      }
-    });
+    // 3. Prepare AI request with Model Fallback
+    const fallbackModels = ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.8-flash'];
+    const maxAttemptsPerModel = 3;
+    let result;
+    let successfulModel = '';
+    let lastError: unknown;
 
     const prompt = `
 System Instruction:
@@ -266,39 +264,95 @@ CRITICAL RULES:
 
 Extract the requested fields according to the strict JSON schema. If you are uncertain about a value, return null for it and mark confidence as 'uncertain'.
 `;
-    let result;
-    let attempt = 0;
-    const maxAttempts = 3;
-    
-    while (attempt < maxAttempts) {
-      try {
-        result = await model.generateContent([
-          { text: prompt },
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: image
-            }
-          }
-        ]);
-        break; // Success
-      } catch (err: unknown) {
-        attempt++;
-        const errMsg = err instanceof Error ? err.message : '';
-        console.error(`Gemini API Error (Scan Attempt ${attempt}):`, errMsg);
-        
-        if (attempt >= maxAttempts || (!errMsg.includes('503') && !errMsg.includes('429'))) {
-          // If it's not a rate limit / capacity error, or we exhausted retries, throw to main catch
-          throw err;
+    for (const modelName of fallbackModels) {
+      let attempt = 0;
+      let modelSuccess = false;
+      
+      const model = genAI.getGenerativeModel({ 
+        model: modelName,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: productExtractionSchema
         }
-        
-        // Wait before retrying (exponential backoff: 1s, 2s)
-        await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+      });
+      
+      while (attempt < maxAttemptsPerModel) {
+        try {
+          attempt++;
+          console.log(`[AI OCR] model attempt: ${attempt}/${maxAttemptsPerModel}`);
+          console.log(`[AI OCR] model: ${modelName}`);
+          
+          result = await model.generateContent([
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: image
+              }
+            }
+          ]);
+          
+          modelSuccess = true;
+          successfulModel = modelName;
+          console.log(`[AI OCR] status: success`);
+          break; // Success for this model
+        } catch (err: unknown) {
+          lastError = err;
+          const errMsg = err instanceof Error ? err.message : String(err);
+          
+          let statusCode = 0;
+          const statusMatch = errMsg.match(/\\[(\\d{3})\\]/);
+          if (statusMatch) statusCode = parseInt(statusMatch[1]);
+          if (errMsg.includes('503')) statusCode = 503;
+          if (errMsg.includes('429')) statusCode = 429;
+          if (errMsg.includes('500')) statusCode = 500;
+          if (errMsg.includes('502')) statusCode = 502;
+          if (errMsg.includes('504')) statusCode = 504;
+          if (errMsg.includes('400')) statusCode = 400;
+          if (errMsg.includes('401')) statusCode = 401;
+          if (errMsg.includes('403')) statusCode = 403;
+          
+          console.log(`[AI OCR] status: ${statusCode || 'error'} - ${errMsg.substring(0, 100)}...`);
+          
+          const isTransient = [429, 500, 502, 503, 504].includes(statusCode) || 
+                              errMsg.toLowerCase().includes('timeout') || 
+                              errMsg.toLowerCase().includes('fetch') ||
+                              errMsg.toLowerCase().includes('network');
+          
+          if (!isTransient) {
+            console.log(`[AI OCR] Non-transient error encountered. Skipping retries for ${modelName}.`);
+            break; // Break the while loop to try next model or fail
+          }
+          
+          if (attempt >= maxAttemptsPerModel) {
+            console.log(`[AI OCR] ${modelName} exhausted.`);
+            break; // Break the while loop to try next model
+          }
+          
+          // Exponential backoff with jitter
+          const baseDelay = Math.pow(2, attempt - 1) * 1000;
+          const jitter = Math.random() * 500;
+          const delay = baseDelay + jitter;
+          console.log(`[AI OCR] retrying in ${Math.round(delay)}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+      
+      if (modelSuccess) {
+        break; // Break the for loop, we have a successful result
+      } else {
+         const nextModel = fallbackModels[fallbackModels.indexOf(modelName) + 1];
+         if (nextModel) {
+             console.log(`[AI OCR] fallback: moving to ${nextModel}`);
+         }
       }
     }
     
-    // Fallback if result is undefined (should theoretically throw above)
-    if (!result) throw new Error('Failed to get result from Gemini API');
+    // Fallback if result is undefined
+    if (!result) {
+      console.log(`[AI OCR] All compatible models failed.`);
+      throw lastError || new Error('Failed to get result from Gemini API across all models');
+    }
 
     let responseText = result.response.text();
     // Strip markdown formatting if present
@@ -315,10 +369,8 @@ Extract the requested fields according to the strict JSON schema. If you are unc
     const errMsg = error instanceof Error ? error.message : '';
     console.error('Gemini API Error (Scan Final):', errMsg);
     
-    let safeUserMessage = 'Failed to process image';
-    if (errMsg.includes('503') || errMsg.includes('429')) {
-      safeUserMessage = 'AI service is currently experiencing high demand. Please try again in a few moments.';
-    } else if (errMsg.includes('400')) {
+    let safeUserMessage = 'AI invoice scanning is temporarily unavailable. No data was saved. Please try again shortly.';
+    if (errMsg.includes('400')) {
       safeUserMessage = 'AI service rejected the request. Please try a clearer image.';
     }
     
