@@ -7,12 +7,19 @@ import { mapSaleToReceiptData } from '../pos/receipt/mapper'
 import { fetchReceiptData } from '../pos/actions'
 import { PrintAdapter } from '../pos/receipt/PrintAdapter'
 
-export default function ReceiptModal({ saleId, onClose }: { saleId: string; onClose: () => void }) {
-  const [data, setData] = useState<ReceiptData | null>(null)
-  const [loading, setLoading] = useState(true)
+type ReceiptModalProps = 
+  | { saleId: string; onClose: () => void; data?: never }
+  | { data: ReceiptData; onClose: () => void; saleId?: never }
+
+export default function ReceiptModal({ saleId, data: initialData, onClose }: ReceiptModalProps) {
+  const [data, setData] = useState<ReceiptData | null>(initialData || null)
+  const [loading, setLoading] = useState(!initialData)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (initialData) return;
+    if (!saleId) return;
+
     const fetchReceipt = async () => {
       setLoading(true)
       try {
@@ -31,7 +38,7 @@ export default function ReceiptModal({ saleId, onClose }: { saleId: string; onCl
     }
     
     fetchReceipt()
-  }, [saleId])
+  }, [saleId, initialData])
 
   const handlePrint = () => {
     PrintAdapter.printA4()

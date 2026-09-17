@@ -9,6 +9,7 @@ export type ReceiptItem = {
   unit: string // This might just be "units" or base unit if we can extract it, otherwise omit
   unitPrice: number
   gstPercentage?: number
+  gstAmount?: number
   discount: number
   lineTotal: number
   batchNumber?: string
