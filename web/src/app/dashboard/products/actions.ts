@@ -99,7 +99,7 @@ export async function addProduct(formData: FormData) {
     }
 
     const name = formData.get('name')?.toString()
-    let sku = formData.get('sku')?.toString()
+    let sku: string | null | undefined = formData.get('sku')?.toString()
     const purchaseCost = parseFloat(formData.get('purchase_cost')?.toString() || '0')
     const sellingPrice = parseFloat(formData.get('selling_price')?.toString() || '0')
     const trackingMode = formData.get('tracking_mode')?.toString() || 'NONE'
@@ -137,12 +137,12 @@ export async function addProduct(formData: FormData) {
     }
 
     if (!sku || sku.trim() === '') {
-      sku = `SYS-${crypto.randomUUID().split('-')[0].toUpperCase()}-${Date.now().toString(36).toUpperCase()}`
+      sku = null
     }
 
     // String validation boundaries
     if (name.length > 255) return { error: 'Product name is too long (max 255 chars)' }
-    if (sku.length > 100) return { error: 'SKU is too long (max 100 chars)' }
+    if (sku && sku.length > 100) return { error: 'SKU is too long (max 100 chars)' }
     if (barcode && barcode.length > 100) return { error: 'Barcode is too long (max 100 chars)' }
     if (description && description.length > 2000) return { error: 'Description is too long' }
 

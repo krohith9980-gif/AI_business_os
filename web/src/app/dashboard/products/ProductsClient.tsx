@@ -10,7 +10,7 @@ type Product = {
   product_id: string
   name: string
   description?: string
-  sku: string
+  sku: string | null
   barcode?: string
   category_id?: string
   category_name: string
@@ -37,6 +37,9 @@ type Store = {
 type Inventory = {
   store_id: string
   variant_id: string
+  batch_number: string | null
+  mfg_date: string | null
+  expiry_date: string | null
   available_stock: number
 }
 
@@ -62,6 +65,7 @@ export default function ProductsClient({
   
   const [search, setSearch] = useState(searchQuery)
   const [selectedStoreId, setSelectedStoreId] = useState<string>(stores[0]?.id || '')
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   
   const [packagingType, setPackagingType] = useState('NONE')
   const [unitsPerPack, setUnitsPerPack] = useState(1)
@@ -79,7 +83,7 @@ export default function ProductsClient({
   const [aiConfidenceInfo, setAiConfidenceInfo] = useState<any | null>(null)
   
   // Duplicate Check State
-  const [duplicateWarning, setDuplicateWarning] = useState<{productName: string, sku: string, barcode: string} | null>(null)
+  const [duplicateWarning, setDuplicateWarning] = useState<{productName: string, sku: string | null, barcode: string} | null>(null)
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false)
 
   // Form Fields (Controlled)
@@ -400,49 +404,114 @@ export default function ProductsClient({
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th scope="col" className="w-8 px-2 py-3 text-left"></th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch No.</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MFG / EXP</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pack</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units/Pack</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pack (Units)</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available Stock</th>
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {initialProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-sm text-gray-500">
+                  <td colSpan={10} className="px-6 py-12 text-center text-sm text-gray-500">
                     {searchQuery ? 'No products match your search.' : 'No products found. Click "Add Product" to create one.'}
                   </td>
                 </tr>
               ) : (
                 initialProducts.map((p) => {
-                  const stock = inventory.find(i => i.variant_id === p.id && i.store_id === selectedStoreId)?.available_stock || 0
+                  const batches = inventory.filter(i => i.variant_id === p.id && i.store_id === selectedStoreId)
+                  const totalStock = batches.reduce((sum, b) => sum + b.available_stock, 0)
+                  const isExpanded = expandedRows.has(p.id)
+                  const hasMultiple = batches.length > 1
+                  
+                  let displayBatch = '-'
+                  let displayDates = '-'
+                  
+                  if (batches.length === 1) {
+                    displayBatch = batches[0].batch_number || 'UNBATCHED'
+                    if (batches[0].mfg_date || batches[0].expiry_date) {
+                      displayDates = `${batches[0].mfg_date || '-'} / ${batches[0].expiry_date || '-'}`
+                    }
+                  } else if (hasMultiple) {
+                    displayBatch = 'Multiple Batches'
+                    displayDates = '...'
+                  }
+
                   return (
-                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.sku}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.category_name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(p.purchase_cost)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(p.selling_price)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.unit_of_measure}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.packaging_type}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.units_per_pack}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{stock}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${p.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {p.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button onClick={() => handleEdit(p)} className="text-indigo-600 hover:text-indigo-900 focus:outline-none">View / Edit</button>
-                    </td>
-                  </tr>
+                  <React.Fragment key={p.id}>
+                    <tr className="hover:bg-gray-50 transition-colors">
+                      <td className="px-2 py-4 whitespace-nowrap">
+                        {hasMultiple && (
+                          <button 
+                            onClick={() => {
+                              const next = new Set(expandedRows)
+                              if (next.has(p.id)) next.delete(p.id)
+                              else next.add(p.id)
+                              setExpandedRows(next)
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 focus:outline-none"
+                          >
+                            <svg className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {p.name}
+                        {!p.is_active && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">Inactive</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {hasMultiple ? (
+                           <span className="text-indigo-600 font-medium cursor-pointer" onClick={() => {
+                              const next = new Set(expandedRows)
+                              if (next.has(p.id)) next.delete(p.id)
+                              else next.add(p.id)
+                              setExpandedRows(next)
+                            }}>{displayBatch}</span>
+                        ) : (
+                           displayBatch
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{displayDates}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.category_name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(p.purchase_cost)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(p.selling_price)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.packaging_type !== 'NONE' ? `${p.packaging_type} (${p.units_per_pack})` : p.unit_of_measure}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{totalStock}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onClick={() => handleEdit(p)} className="text-indigo-600 hover:text-indigo-900 focus:outline-none">View / Edit</button>
+                      </td>
+                    </tr>
+                    {isExpanded && hasMultiple && batches.map((b, idx) => (
+                      <tr key={`${p.id}-${idx}`} className="bg-gray-50 border-t border-gray-100">
+                        <td className="px-2 py-3"></td>
+                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-400 pl-10 flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                          Batch Variant
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-700">
+                          {b.batch_number || 'UNBATCHED'}
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500">
+                          {b.mfg_date || '-'} / {b.expiry_date || '-'}
+                        </td>
+                        <td colSpan={4} className="px-6 py-3 text-sm text-gray-400"></td>
+                        <td className="px-6 py-3 whitespace-nowrap text-sm font-bold text-indigo-700">
+                          {b.available_stock}
+                        </td>
+                        <td className="px-6 py-3"></td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
                   )
                 })
               )}
@@ -537,7 +606,7 @@ export default function ProductsClient({
                   <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-md">
                     <h4 className="text-sm font-bold text-red-900">Duplicate Detected!</h4>
                     <p className="text-xs text-red-700 mt-1">
-                      This barcode or SKU already belongs to an existing product: <strong>{duplicateWarning.productName}</strong> (SKU: {duplicateWarning.sku}).<br/>
+                      This barcode or SKU already belongs to an existing product: <strong>{duplicateWarning.productName}</strong> (SKU: {duplicateWarning.sku || 'None'}).<br/>
                       To avoid inventory issues, you should close this window and update the existing product or its stock instead of creating a new one.
                     </p>
                   </div>
@@ -563,7 +632,7 @@ export default function ProductsClient({
                   
                   <div>
                     <label htmlFor="sku" className="block text-sm font-medium text-gray-700">SKU (Optional)</label>
-                    <input type="text" name="sku" id="sku" value={sku} onChange={e => setSku(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Leave empty to auto-generate" />
+                    <input type="text" name="sku" id="sku" value={sku} onChange={e => setSku(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Leave empty if none" />
                   </div>
 
                   <div>
@@ -816,7 +885,7 @@ export default function ProductsClient({
                     </div>
                   </div>
 
-                  {!editingVariantId && (
+                  {!editingVariantId ? (
                   <div className="sm:col-span-2 mt-4 pt-4 border-t border-gray-200">
                     <h4 className="text-md font-medium text-gray-900 mb-4">Initial Inventory</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -854,6 +923,36 @@ export default function ProductsClient({
                         </span>
                       </div>
                     )}
+                  </div>
+                  ) : (
+                  <div className="sm:col-span-2 mt-4 pt-4 border-t border-gray-200">
+                    <h4 className="text-md font-medium text-gray-900 mb-4">Inventory Batches ({stores.find(s => s.id === selectedStoreId)?.name})</h4>
+                    <div className="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5 rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-300">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900">Batch No.</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900">MFG</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900">EXP</th>
+                            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-900">Available Stock</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {inventory.filter(i => i.variant_id === editingVariantId && i.store_id === selectedStoreId).length === 0 ? (
+                            <tr><td colSpan={4} className="px-4 py-4 text-center text-sm text-gray-500">No active stock in this store.</td></tr>
+                          ) : (
+                            inventory.filter(i => i.variant_id === editingVariantId && i.store_id === selectedStoreId).map((b, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">{b.batch_number || <span className="text-gray-400 italic">UNBATCHED</span>}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">{b.mfg_date || '-'}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">{b.expiry_date || '-'}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm font-bold text-gray-900 text-right">{b.available_stock}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                   )}
 

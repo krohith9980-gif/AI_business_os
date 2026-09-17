@@ -143,8 +143,8 @@ export default async function ProductsPage({
   if (stores && stores.length > 0) {
     const storeIds = stores.map(s => s.id)
     const { data: invData } = await supabase
-      .from('vw_inventory_available')
-      .select('store_id, variant_id, available_stock')
+      .from('vw_batch_inventory')
+      .select('store_id, variant_id, batch_number, mfg_date, expiry_date, available_stock')
       .in('store_id', storeIds)
       
     if (invData) inventory = invData

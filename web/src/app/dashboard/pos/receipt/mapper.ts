@@ -38,7 +38,8 @@ export function mapSaleToReceiptData(saleData: any): ReceiptData {
       gstPercentage: taxRate,
       gstAmount: taxAmount,
       discount: Number(item.discount_amount) || 0,
-      lineTotal: Number(item.total_price) || 0
+      lineTotal: Number(item.total_price) || 0,
+      batchNumber: item.batch_number || undefined
     }
   })
 

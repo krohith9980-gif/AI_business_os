@@ -11,6 +11,7 @@ export async function completeSale(payload: {
     display_quantity: number
     sale_unit: string
     discount_amount: number
+    batch_number: string | null
   }[]
   payments: {
     method: 'CASH' | 'UPI' | 'CARD' | 'SPLIT' | 'CREDIT'

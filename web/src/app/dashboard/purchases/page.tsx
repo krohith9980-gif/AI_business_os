@@ -19,7 +19,7 @@ export default async function PurchasesPage() {
   // 1. Get user's active store and organization
   const { data: userStore } = await supabase
     .from('user_stores')
-    .select('store_id, stores(organization_id)')
+    .select('store_id')
     .eq('profile_id', user.id)
     .eq('is_active', true)
     .single()
@@ -29,8 +29,19 @@ export default async function PurchasesPage() {
   }
 
   const storeId = userStore.store_id
-  // Need to safely extract organization_id
-  const organizationId = Array.isArray(userStore.stores) ? userStore.stores[0]?.organization_id : (userStore.stores as any)?.organization_id
+
+  const { data: memberships } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .limit(1)
+
+  if (!memberships || memberships.length === 0) {
+    return <div className="p-4 text-red-600">No active organization found.</div>
+  }
+
+  const organizationId = memberships[0].organization_id
 
   // 2. Fetch recent purchases
   const { data: purchases, error: purchasesError } = await supabase

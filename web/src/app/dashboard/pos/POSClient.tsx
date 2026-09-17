@@ -15,7 +15,7 @@ type Variant = {
   id: string
   productName: string
   variantName: string
-  sku: string
+  sku: string | null
   selling_price: number
   unit_of_measure: string
   packaging_type: string
@@ -26,6 +26,9 @@ type Variant = {
 type Inventory = {
   store_id: string
   variant_id: string
+  batch_number: string | null
+  mfg_date: string | null
+  expiry_date: string | null
   available_stock: number
 }
 
@@ -33,7 +36,7 @@ type CartItem = {
   variantId: string
   productName: string
   variantName: string
-  sku: string
+  sku: string | null
   displayQuantity: number
   saleUnit: string
   unitPrice: number
@@ -41,6 +44,7 @@ type CartItem = {
   packagingType: string
   unitsPerPack: number
   baseUnit: string
+  batchNumber: string | null
 }
 
 type PaymentMethod = 'CASH' | 'UPI' | 'CARD' | 'SPLIT' | 'CREDIT'
@@ -61,6 +65,11 @@ export default function POSClient({
   const [cart, setCart] = useState<CartItem[]>([])
   
   const [productSearch, setProductSearch] = useState('')
+  const [batchSelectionModal, setBatchSelectionModal] = useState<{
+    variant: Variant;
+    saleUnit: string;
+    batches: Inventory[];
+  } | null>(null);
   
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
@@ -152,15 +161,26 @@ export default function POSClient({
     )
   }, [productSearch, variants])
 
-  const addToCart = (variant: Variant, saleUnit: string) => {
+  const handleAddToCartClick = (variant: Variant, saleUnit: string) => {
+    const batches = inventory.filter(i => i.variant_id === variant.id && i.store_id === selectedStoreId && i.available_stock > 0);
+    if (batches.length === 1) {
+      addToCart(variant, saleUnit, batches[0].batch_number);
+    } else if (batches.length > 1) {
+      setBatchSelectionModal({ variant, saleUnit, batches });
+    } else {
+      addToCart(variant, saleUnit, null);
+    }
+  }
+
+  const addToCart = (variant: Variant, saleUnit: string, batchNumber: string | null) => {
     setSuccessSaleId(null)
     setReceiptData(null)
     setPrintStatus(null)
     setCart(prev => {
-      const existing = prev.find(item => item.variantId === variant.id && item.saleUnit === saleUnit)
+      const existing = prev.find(item => item.variantId === variant.id && item.saleUnit === saleUnit && item.batchNumber === batchNumber)
       if (existing) {
         return prev.map(item => 
-          item.variantId === variant.id && item.saleUnit === saleUnit
+          item.variantId === variant.id && item.saleUnit === saleUnit && item.batchNumber === batchNumber
             ? { ...item, displayQuantity: item.displayQuantity + 1 } 
             : item
         )
@@ -176,14 +196,16 @@ export default function POSClient({
         discountAmount: 0,
         packagingType: variant.packaging_type,
         unitsPerPack: variant.units_per_pack,
-        baseUnit: variant.unit_of_measure
+        baseUnit: variant.unit_of_measure,
+        batchNumber: batchNumber
       }]
     })
+    setBatchSelectionModal(null)
   }
 
-  const updateQuantity = (variantId: string, saleUnit: string, delta: number) => {
+  const updateQuantity = (variantId: string, saleUnit: string, batchNumber: string | null, delta: number) => {
     setCart(prev => prev.map(item => {
-      if (item.variantId === variantId && item.saleUnit === saleUnit) {
+      if (item.variantId === variantId && item.saleUnit === saleUnit && item.batchNumber === batchNumber) {
         const newQ = Math.max(1, item.displayQuantity + delta)
         return { ...item, displayQuantity: newQ }
       }
@@ -191,18 +213,18 @@ export default function POSClient({
     }))
   }
   
-  const updateDiscount = (variantId: string, saleUnit: string, amount: string) => {
+  const updateDiscount = (variantId: string, saleUnit: string, batchNumber: string | null, amount: string) => {
     const val = parseFloat(amount) || 0
     setCart(prev => prev.map(item => {
-      if (item.variantId === variantId && item.saleUnit === saleUnit) {
+      if (item.variantId === variantId && item.saleUnit === saleUnit && item.batchNumber === batchNumber) {
         return { ...item, discountAmount: val }
       }
       return item
     }))
   }
 
-  const removeFromCart = (variantId: string, saleUnit: string) => {
-    setCart(prev => prev.filter(item => !(item.variantId === variantId && item.saleUnit === saleUnit)))
+  const removeFromCart = (variantId: string, saleUnit: string, batchNumber: string | null) => {
+    setCart(prev => prev.filter(item => !(item.variantId === variantId && item.saleUnit === saleUnit && item.batchNumber === batchNumber)))
   }
 
   const handleCheckoutOpen = () => {
@@ -286,7 +308,8 @@ export default function POSClient({
           variant_id: c.variantId,
           display_quantity: c.displayQuantity,
           sale_unit: c.saleUnit,
-          discount_amount: c.discountAmount
+          discount_amount: c.discountAmount,
+          batch_number: c.batchNumber
         })),
         payments: finalPayments,
         dueDate: finalDueDate
@@ -518,10 +541,10 @@ export default function POSClient({
                         {variant.variantName}
                       </span>
                       <div className="mt-3 flex flex-col gap-2 w-full">
-                        <span className="text-xs text-gray-400">{variant.sku}</span>
+                        {variant.sku && <span className="text-xs text-gray-400">{variant.sku}</span>}
                         <div className="flex flex-col gap-2 mt-1">
                           <button 
-                            onClick={() => addToCart(variant, 'PIECE')}
+                            onClick={() => handleAddToCartClick(variant, 'PIECE')}
                             className="px-3 py-2 text-xs font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200 transition-colors text-left flex justify-between items-center"
                           >
                             <div>
@@ -532,7 +555,7 @@ export default function POSClient({
                           </button>
                           {variant.packaging_type !== 'NONE' && (
                             <button 
-                              onClick={() => addToCart(variant, variant.packaging_type)}
+                              onClick={() => handleAddToCartClick(variant, variant.packaging_type)}
                               className="px-3 py-2 text-xs font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200 transition-colors text-left flex justify-between items-center"
                             >
                               <div>
@@ -574,11 +597,11 @@ export default function POSClient({
               ) : (
                 <ul className="divide-y divide-gray-200">
                   {cart.map(item => (
-                    <li key={`${item.variantId}-${item.saleUnit}`} className="p-4 hover:bg-gray-50">
+                    <li key={`${item.variantId}-${item.saleUnit}-${item.batchNumber || 'NONE'}`} className="p-4 hover:bg-gray-50">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1 min-w-0 pr-4">
                           <p className="text-sm font-medium text-gray-900 truncate">{item.productName}</p>
-                          <p className="text-xs text-gray-500 truncate">{item.saleUnit} {item.saleUnit === item.packagingType && item.packagingType !== 'NONE' ? `(${item.unitsPerPack} ${item.baseUnit})` : ''}</p>
+                          <p className="text-xs text-gray-500 truncate">{item.saleUnit} {item.saleUnit === item.packagingType && item.packagingType !== 'NONE' ? `(${item.unitsPerPack} ${item.baseUnit})` : ''} {item.batchNumber ? `| Batch: ${item.batchNumber}` : ''}</p>
                         </div>
                         <div className="text-right">
                           <span className="text-sm font-medium text-gray-900">
@@ -590,14 +613,14 @@ export default function POSClient({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center border border-gray-300 rounded-md">
                           <button 
-                            onClick={() => updateQuantity(item.variantId, item.saleUnit, -1)}
+                            onClick={() => updateQuantity(item.variantId, item.saleUnit, item.batchNumber, -1)}
                             className="px-2 py-1 text-gray-600 hover:bg-gray-100 rounded-l-md"
                           >-</button>
                           <span className="px-2 py-1 text-sm text-gray-900 min-w-[2rem] text-center">
                             {item.displayQuantity}
                           </span>
                           <button 
-                            onClick={() => updateQuantity(item.variantId, item.saleUnit, 1)}
+                            onClick={() => updateQuantity(item.variantId, item.saleUnit, item.batchNumber, 1)}
                             className="px-2 py-1 text-gray-600 hover:bg-gray-100 rounded-r-md"
                           >+</button>
                         </div>
@@ -610,12 +633,12 @@ export default function POSClient({
                               min="0"
                               step="0.01"
                               value={item.discountAmount || ''}
-                              onChange={(e) => updateDiscount(item.variantId, item.saleUnit, e.target.value)}
+                              onChange={(e) => updateDiscount(item.variantId, item.saleUnit, item.batchNumber, e.target.value)}
                               className="w-16 p-1 text-xs border border-gray-300 rounded focus:border-indigo-500 focus:ring-indigo-500 text-gray-900"
                             />
                           </div>
                           <button 
-                            onClick={() => removeFromCart(item.variantId, item.saleUnit)}
+                            onClick={() => removeFromCart(item.variantId, item.saleUnit, item.batchNumber)}
                             className="text-red-500 hover:text-red-700 p-1"
                             title="Remove item"
                           >
@@ -839,8 +862,47 @@ export default function POSClient({
         </div>
       )}
 
-      {showA4Receipt && successSaleId && (
-        <ReceiptModal saleId={successSaleId} onClose={() => setShowA4Receipt(false)} />
+      {batchSelectionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm print:hidden">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+              <h3 className="text-lg font-medium text-gray-900">Select Batch</h3>
+              <button 
+                onClick={() => setBatchSelectionModal(null)}
+                className="text-gray-400 hover:text-gray-500 focus:outline-none"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div className="p-0">
+              <ul className="divide-y divide-gray-200">
+                {batchSelectionModal.batches.map((batch, idx) => (
+                  <li 
+                    key={idx} 
+                    className="p-4 hover:bg-gray-50 cursor-pointer flex justify-between items-center transition"
+                    onClick={() => addToCart(batchSelectionModal.variant, batchSelectionModal.saleUnit, batch.batch_number)}
+                  >
+                    <div>
+                      <p className="font-bold text-gray-900">{batch.batch_number || 'UNBATCHED'}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {batch.mfg_date ? `MFG: ${batch.mfg_date}` : 'MFG: -'} | {batch.expiry_date ? `EXP: ${batch.expiry_date}` : 'EXP: -'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-indigo-600">{batch.available_stock} Available</p>
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded mt-1 inline-block">Select</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showA4Receipt && receiptData && (
+        <ReceiptModal data={receiptData} onClose={() => setShowA4Receipt(false)} />
       )}
       
       {/* Hidden container for print-only ThermalReceipt */}
