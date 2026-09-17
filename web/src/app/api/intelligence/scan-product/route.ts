@@ -87,7 +87,7 @@ const productExtractionSchema: any = {
           },
           grossPurchaseCost: {
             type: SchemaType.NUMBER,
-            description: 'If supplier invoice: the pre-discount rate or gross cost per unit (e.g. 875).',
+            description: 'If supplier invoice: the TAXABLE / PRE-TAX rate or gross cost per unit (e.g. 875). If the invoice provides both a taxable rate and a GST-inclusive rate, you MUST extract the taxable/pre-tax rate.',
             nullable: true
           },
           lineDiscountPercentage: {
@@ -262,6 +262,7 @@ CRITICAL RULES:
 8. If the boundary between commercial product name and chemical is ambiguous or you are not sure what text is the commercial name, DO NOT SILENTLY DELETE TEXT. You must preserve the full text in productName and mark the productName confidence as "uncertain".
 9. INVOICE PACKAGING: If an invoice specifies packaging (e.g., "4 CTN, 40 Nos"), packageQuantity is 4, packageUnit is "CTN", baseQuantity is 40. DO NOT swap package quantity and base quantity. DO NOT normalize package unit (CTN MUST remain CTN, PAC MUST remain PAC). DO NOT GUESS unitsPerPack if it cannot be derived.
 10. INVOICE DISCOUNTS: If an invoice specifies a discount (e.g., 30%), extract it into lineDiscountPercentage and calculate the total lineDiscountAmount (gross rate * base quantity * discount%). DO NOT output per-unit discount.
+11. TAX SEMANTICS: If an invoice gives a taxable line rate AND a separate GST/tax, you MUST extract the TAXABLE LINE RATE as the grossPurchaseCost. If an invoice gives ONLY a GST-inclusive rate and no separate tax information, extract that value and do NOT reverse-calculate tax.
 
 Extract the requested fields according to the strict JSON schema. If you are uncertain about a value, return null for it and mark confidence as 'uncertain'.
 `;
