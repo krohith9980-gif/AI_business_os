@@ -242,7 +242,7 @@ export default function AIInvoiceModal({
           discount_percentage: item.lineDiscountPercentage || 0,
           discount_amount: item.lineDiscountAmount || 0,
           batch_number: item.batchNumber || undefined,
-          mfg_date: item.manufacturingDate || undefined,
+          mfg_date: item.mfgDate || undefined,
           expiry_date: item.expiryDate || undefined,
           raw_ai_data: {
             ...item,
@@ -325,6 +325,11 @@ export default function AIInvoiceModal({
       if (item.quantity <= 0) return setError('Quantity must be greater than 0')
       if (item.purchase_cost < 0) return setError('Purchase cost cannot be negative')
       if (item.sale_cost === '' || Number(item.sale_cost) < 0) return setError('Sale cost is required and cannot be negative')
+      if (item.mfg_date && item.expiry_date) {
+        if (new Date(item.expiry_date) <= new Date(item.mfg_date)) {
+          return setError(`Expiry date must be after Mfg date for product: ${item.product_name || 'selected item'}`)
+        }
+      }
     }
 
     const parsedAmountPaid = paymentStatus === 'CREDIT' ? 0 : (parseFloat(amountPaid) || 0)

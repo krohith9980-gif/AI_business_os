@@ -60,14 +60,14 @@ const productExtractionSchema: any = {
             description: 'The manufacturing Batch No. or Lot No. (e.g. "SCPL25031"). Extract EXACTLY what is printed. Do NOT invent a batch number if none is visible.',
             nullable: true,
           },
-          manufacturingDate: {
+          mfgDate: {
             type: SchemaType.STRING,
-            description: 'Mfg Date, extracted as text (e.g. "07-10-2025" or "Oct 2025").',
+            description: "The product's manufacturing date exactly as printed on the invoice/label. Look specifically for labels such as MFG, MFD, MFG DATE, MANUFACTURED, MANUFACTURING DATE. Convert to ISO YYYY-MM-DD when the date is clearly readable. (e.g. \"8-Aug-25\" -> \"2025-08-08\"). If ambiguous, return null.",
             nullable: true,
           },
           expiryDate: {
             type: SchemaType.STRING,
-            description: 'Expiry Date or Use By Date, extracted as text.',
+            description: "The product's expiry date exactly as printed on the invoice/label. Look specifically for labels such as EXP, EXP DATE, EXPIRY, EXPIRY DATE, VALID UP TO. Convert to ISO YYYY-MM-DD when the date is clearly readable. If ambiguous, return null.",
             nullable: true,
           },
           mrp: {
@@ -162,18 +162,18 @@ const productExtractionSchema: any = {
               batchNumber: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               measurement: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               unitsPerPack: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
-              manufacturingDate: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
+              mfgDate: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               expiryDate: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               purchaseCost: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] },
               purchaseQuantity: { type: SchemaType.STRING, enum: ['high', 'uncertain', 'not_found'] }
             },
-            required: ['fullProductIdentity', 'productName', 'chemicalName', 'concentration', 'formulation', 'batchNumber', 'measurement', 'unitsPerPack', 'manufacturingDate', 'expiryDate', 'purchaseCost', 'purchaseQuantity']
+            required: ['fullProductIdentity', 'productName', 'chemicalName', 'concentration', 'formulation', 'batchNumber', 'measurement', 'unitsPerPack', 'mfgDate', 'expiryDate', 'purchaseCost', 'purchaseQuantity']
           }
         },
         required: [
           'fullProductIdentity', 'productName', 'manufacturer', 'brand', 'sku', 'barcode', 'batchNumber', 
           'measurementValue', 'measurementUnit', 'packagingType', 'unitsPerPack', 
-          'manufacturingDate', 'expiryDate', 'purchaseCost', 'purchaseQuantity', 'mrp', 'confidence'
+          'mfgDate', 'expiryDate', 'purchaseCost', 'purchaseQuantity', 'mrp', 'confidence'
         ]
       }
     },

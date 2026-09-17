@@ -20,6 +20,9 @@ export type InvoicePurchaseItem = {
   gross_purchase_cost?: number
   discount_percentage?: number
   discount_amount?: number
+  batch_number?: string
+  mfg_date?: string
+  expiry_date?: string
 }
 
 export async function createInvoicePurchaseOrder(
