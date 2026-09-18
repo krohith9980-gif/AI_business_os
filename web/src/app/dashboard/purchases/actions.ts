@@ -7,7 +7,7 @@ export async function createPurchaseOrder(
   storeId: string,
   supplierId: string,
   idempotencyKey: string,
-  items: { variant_id: string; quantity: number; purchase_cost: number }[]
+  items: { variant_id: string; quantity: number; purchase_cost: number; package_quantity?: number; package_unit?: string; units_per_package?: number }[]
 ) {
   const supabase = await createClient()
 
