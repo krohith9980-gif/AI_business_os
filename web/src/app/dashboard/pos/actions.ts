@@ -181,7 +181,7 @@ export async function fetchReceiptData(saleId: string) {
       customers ( name, phone_number ),
       sale_items (
         *,
-        product_variants ( sku, products ( name ) )
+        product_variants ( sku, unit_of_measure, packaging_type, units_per_pack, item_size, attributes, products ( name ) )
       ),
       payments ( * )
     `)

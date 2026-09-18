@@ -116,8 +116,7 @@ export default function ThermalReceipt({ data }: { data: ReceiptData }) {
                     {item.serialNumber}. {item.productName}
                   </div>
                   <div className="text-[9px] text-gray-500 mt-0.5 flex flex-wrap gap-x-2">
-                    {item.hsn && <span>HSN:{item.hsn}</span>}
-                    {item.sku && <span>SKU:{item.sku}</span>}
+                    {item.unitPackDisplay && item.unitPackDisplay !== '-' && <span>Unit:{item.unitPackDisplay}</span>}
                     {item.batchNumber && <span>Batch:{item.batchNumber}</span>}
                     {item.gstPercentage ? <span>GST:{item.gstPercentage}%</span> : null}
                   </div>

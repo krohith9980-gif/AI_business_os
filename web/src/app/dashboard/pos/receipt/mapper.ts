@@ -21,6 +21,21 @@ export function mapSaleToReceiptData(saleData: any): ReceiptData {
       sSku = '-'
     }
 
+    const variant = item.product_variants || {};
+    const uom = variant.attributes?.measurementUnit || variant.unit_of_measure || '';
+    const size = variant.attributes?.measurementValue || variant.item_size;
+    const packType = variant.attributes?.packagingType || variant.packaging_type || 'NONE';
+    const packQty = variant.attributes?.units_per_package || variant.attributes?.unitsPerPack || variant.units_per_pack || 1;
+    
+    let display = '-';
+    if (size !== undefined && size !== null) {
+      if (packType !== 'NONE' && Number(packQty) > 1) {
+        display = `${packQty} × ${size} ${uom}`;
+      } else {
+        display = `${size} ${uom}`;
+      }
+    }
+
     // The legacy tax logic computes tax to 0. 
     // We map it for future compatibility.
     const taxRate = Number(item.tax_rate) || 0
@@ -34,6 +49,7 @@ export function mapSaleToReceiptData(saleData: any): ReceiptData {
       sku: sSku,
       quantity: Number(item.quantity) || 0,
       unit: item.unit || 'units',
+      unitPackDisplay: display,
       unitPrice: Number(item.unit_selling_price) || 0,
       gstPercentage: taxRate,
       gstAmount: taxAmount,

@@ -193,7 +193,7 @@ export default function ReceiptModal({ saleId, data: initialData, onClose }: Rec
                     <tr>
                       <th className="py-2 px-3 font-semibold text-center border-r border-gray-300">S.No</th>
                       <th className="py-2 px-3 font-semibold border-r border-gray-300">Product / Description</th>
-                      <th className="py-2 px-3 font-semibold text-center border-r border-gray-300">HSN / SKU</th>
+                      <th className="py-2 px-3 font-semibold text-center border-r border-gray-300">Unit / Pack</th>
                       <th className="py-2 px-3 font-semibold text-right border-r border-gray-300">Qty</th>
                       <th className="py-2 px-3 font-semibold text-right border-r border-gray-300">Unit Price</th>
                       <th className="py-2 px-3 font-semibold text-right border-r border-gray-300">GST %</th>
@@ -209,7 +209,7 @@ export default function ReceiptModal({ saleId, data: initialData, onClose }: Rec
                           <p className="font-medium text-gray-900">{item.productName}</p>
                           {item.description && <p className="text-xs text-gray-500">{item.description}</p>}
                         </td>
-                        <td className="py-2 px-3 text-center text-gray-600 border-r border-gray-300 text-xs">{item.hsn || item.sku || '-'}</td>
+                        <td className="py-2 px-3 text-center text-gray-600 border-r border-gray-300 text-xs">{item.unitPackDisplay || '-'}</td>
                         <td className="py-2 px-3 text-right border-r border-gray-300">{item.quantity} <span className="text-xs text-gray-500">{item.unit !== 'units' ? item.unit : ''}</span></td>
                         <td className="py-2 px-3 text-right border-r border-gray-300">{formatCurrency(item.unitPrice)}</td>
                         <td className="py-2 px-3 text-right border-r border-gray-300">{item.gstPercentage ? item.gstPercentage + '%' : '-'}</td>
