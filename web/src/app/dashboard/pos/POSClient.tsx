@@ -21,6 +21,7 @@ type Variant = {
   packaging_type: string
   units_per_pack: number
   item_size: number
+  attributes?: any
 }
 
 type Inventory = {
@@ -523,23 +524,34 @@ export default function POSClient({
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {filteredVariants.map(variant => {
-                    const stock = inventory.find(i => i.variant_id === variant.id && i.store_id === selectedStoreId)?.available_stock || 0
+                    const batches = inventory.filter(i => i.variant_id === variant.id && i.store_id === selectedStoreId)
+                    const stock = batches.reduce((sum, b) => sum + Number(b.available_stock || 0), 0)
+                    
+                    const uom = variant.attributes?.measurementUnit || variant.unit_of_measure || '';
+                    const size = variant.attributes?.measurementValue || variant.item_size || 1;
+                    const packType = variant.attributes?.packagingType || variant.packaging_type || 'NONE';
+                    const packQty = variant.attributes?.units_per_package || variant.attributes?.unitsPerPack || variant.units_per_pack || 1;
+                    
+                    const unitPackDisplay = packType !== 'NONE' && packQty > 1 
+                      ? `${packQty} × ${size} ${uom}` 
+                      : `${size} ${uom}`;
+                      
                     return (
                     <div
                       key={variant.id}
                       className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow-sm text-left"
                     >
                       <div className="flex justify-between items-start w-full">
-                        <span className="font-semibold text-gray-900 truncate w-full" title={variant.productName}>
-                          {variant.productName}
-                        </span>
+                        <div className="flex flex-col min-w-0 pr-2">
+                          <span className="font-semibold text-gray-900 truncate w-full" title={variant.productName}>
+                            {variant.productName}
+                          </span>
+                          <span className="text-sm font-medium text-indigo-600 mt-0.5">{unitPackDisplay}</span>
+                        </div>
                         <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ml-2 ${stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                          {stock}
+                          {stock} {variant.unit_of_measure}
                         </span>
                       </div>
-                      <span className="text-sm text-gray-500 truncate w-full" title={variant.variantName}>
-                        {variant.variantName}
-                      </span>
                       <div className="mt-3 flex flex-col gap-2 w-full">
                         {variant.sku && <span className="text-xs text-gray-400">{variant.sku}</span>}
                         <div className="flex flex-col gap-2 mt-1">
