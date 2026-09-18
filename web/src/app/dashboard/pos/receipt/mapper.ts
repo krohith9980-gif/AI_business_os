@@ -24,16 +24,10 @@ export function mapSaleToReceiptData(saleData: any): ReceiptData {
     const variant = item.product_variants || {};
     const uom = variant.attributes?.measurementUnit || variant.unit_of_measure || '';
     const size = variant.attributes?.measurementValue || variant.item_size;
-    const packType = variant.attributes?.packagingType || variant.packaging_type || 'NONE';
-    const packQty = variant.attributes?.units_per_package || variant.attributes?.unitsPerPack || variant.units_per_pack || 1;
     
     let display = '-';
     if (size !== undefined && size !== null) {
-      if (packType !== 'NONE' && Number(packQty) > 1) {
-        display = `${packQty} × ${size} ${uom}`;
-      } else {
-        display = `${size} ${uom}`;
-      }
+      display = `${size} ${uom}`.trim();
     }
 
     // The legacy tax logic computes tax to 0. 
