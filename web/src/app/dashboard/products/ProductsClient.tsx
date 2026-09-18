@@ -427,7 +427,7 @@ export default function ProductsClient({
                   return false;
                 }).map((p) => {
                   const batches = inventory.filter(i => i.variant_id === p.id && i.store_id === selectedStoreId)
-                  const totalStock = batches.reduce((sum, b) => sum + b.available_stock, 0)
+                  const totalStock = batches.reduce((sum, b) => sum + Number(b.available_stock || 0), 0)
                   const isExpanded = expandedRows.has(p.id)
                   const hasMultiple = batches.length > 1
                   
