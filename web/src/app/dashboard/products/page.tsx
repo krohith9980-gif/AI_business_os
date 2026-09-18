@@ -90,6 +90,7 @@ export default async function ProductsPage({
         unit_of_measure,
         packaging_type,
         units_per_pack,
+        item_size,
         barcode,
         attributes,
         product:products!inner (
@@ -129,6 +130,7 @@ export default async function ProductsPage({
             unit_of_measure: v.unit_of_measure,
             packaging_type: v.packaging_type,
             units_per_pack: v.units_per_pack,
+            item_size: v.item_size,
             attributes: v.attributes || {}
         }))
     }

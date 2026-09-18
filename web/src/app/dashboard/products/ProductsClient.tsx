@@ -21,6 +21,7 @@ type Product = {
   unit_of_measure: string
   packaging_type: string
   units_per_pack: number
+  item_size?: number
   attributes?: any
 }
 
@@ -398,7 +399,7 @@ export default function ProductsClient({
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pack (Units)</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit / Pack</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available Stock</th>
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -484,8 +485,20 @@ export default function ProductsClient({
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.category_name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(p.purchase_cost)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(p.selling_price)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.packaging_type !== 'NONE' ? `${p.packaging_type} (${p.units_per_pack})` : p.unit_of_measure}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{totalStock}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {(() => {
+                           const uom = p.attributes?.measurementUnit || p.unit_of_measure || '';
+                           const size = p.attributes?.measurementValue || p.item_size || 1;
+                           const packType = p.attributes?.packagingType || p.packaging_type || 'NONE';
+                           const packQty = p.attributes?.units_per_package || p.attributes?.unitsPerPack || p.units_per_pack || 1;
+                           
+                           if (packType !== 'NONE' && packQty > 1) {
+                             return `${packQty} × ${size} ${uom}`;
+                           }
+                           return `${size} ${uom}`;
+                        })()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{totalStock} {p.unit_of_measure}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button onClick={() => handleEdit(p)} className="text-indigo-600 hover:text-indigo-900 focus:outline-none">View / Edit</button>
                       </td>
@@ -507,7 +520,7 @@ export default function ProductsClient({
                         </td>
                         <td colSpan={4} className="px-6 py-3 text-sm text-gray-400"></td>
                         <td className="px-6 py-3 whitespace-nowrap text-sm font-bold text-indigo-700">
-                          {b.available_stock}
+                          {b.available_stock} {p.unit_of_measure}
                         </td>
                         <td className="px-6 py-3"></td>
                       </tr>
@@ -947,7 +960,9 @@ export default function ProductsClient({
                                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">{b.batch_number || <span className="text-gray-400 italic">UNBATCHED</span>}</td>
                                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">{b.mfg_date || '-'}</td>
                                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">{b.expiry_date || '-'}</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-sm font-bold text-gray-900 text-right">{b.available_stock}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm font-bold text-gray-900 text-right">
+                                  {b.available_stock} {initialProducts.find(p => p.id === editingVariantId)?.unit_of_measure}
+                                </td>
                               </tr>
                             ))
                           )}
