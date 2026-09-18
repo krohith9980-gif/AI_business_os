@@ -19,7 +19,7 @@ export default async function PurchasesPage() {
   // 1. Get user's active store and organization
   const { data: userStore } = await supabase
     .from('user_stores')
-    .select('store_id')
+    .select('store_id, stores ( name )')
     .eq('profile_id', user.id)
     .eq('is_active', true)
     .single()
@@ -29,6 +29,8 @@ export default async function PurchasesPage() {
   }
 
   const storeId = userStore.store_id
+  const storesObj: any = userStore.stores
+  const storeName = Array.isArray(storesObj) ? storesObj[0]?.name : storesObj?.name || 'Store'
 
   const { data: memberships } = await supabase
     .from('organization_members')
@@ -82,7 +84,7 @@ export default async function PurchasesPage() {
   // 3. Fetch active suppliers
   const { data: suppliers } = await supabase
     .from('suppliers')
-    .select('id, name')
+    .select('id, name, attributes')
     .eq('organization_id', organizationId)
     .eq('is_active', true)
     .order('name')
@@ -95,6 +97,7 @@ export default async function PurchasesPage() {
       sku,
       selling_price,
       attributes,
+      unit_of_measure,
       product:products (
         name
       )
@@ -127,6 +130,7 @@ export default async function PurchasesPage() {
       suppliers={suppliers || []} 
       variants={variants || []}
       storeId={storeId}
+      storeName={storeName}
     />
   )
 }
