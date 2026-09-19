@@ -113,7 +113,8 @@ export default function PurchasesClient({
         const productName = getVariantName(v);
         const baseUom = v.unit_of_measure || 'PCS';
         
-        if (item.purchase_unit === v.packaging_type && v.packaging_type && v.packaging_type !== 'NONE') {
+        const isPkg = item.purchase_unit !== baseUom && item.purchase_unit !== 'PCS';
+        if (isPkg) {
           message += `• ${productName} — ${item.package_quantity} ${item.purchase_unit} (${item.units_per_package} ${baseUom}/${item.purchase_unit} = ${item.quantity} ${baseUom})\n`;
         } else {
           message += `• ${productName} — ${item.quantity} ${baseUom}\n`;
@@ -305,7 +306,13 @@ export default function PurchasesClient({
                           const v = variants.find(v => v.id === item.variant_id);
                           const baseUom = v?.unit_of_measure || 'PCS';
                           const hasPackage = v?.packaging_type && v.packaging_type !== 'NONE';
-                          const isPackage = hasPackage && item.purchase_unit === v.packaging_type;
+                          const isPackage = item.purchase_unit !== baseUom && item.purchase_unit !== 'PCS';
+
+                          const PACKAGE_UNITS = [
+                            'BOX', 'CTN', 'CARTON', 'PACK', 'PAC', 'PKT', 'BAG', 
+                            'BTL', 'BOTTLE', 'STRIP', 'BALE', 'DOZEN', 'ROLL', 
+                            'DRUM', 'JAR', 'TIN', 'CAN'
+                          ];
 
                           return (
                             <div key={index} className="flex flex-col sm:flex-row gap-3 items-end border border-gray-300 p-4 rounded-md bg-gray-50">
@@ -338,18 +345,20 @@ export default function PurchasesClient({
                                 </select>
                               </div>
 
-                              <div className="w-full sm:w-32">
+                              <div className="w-full sm:w-36 shrink-0">
                                 <label className="block text-xs font-bold text-gray-700 mb-1">Purchase Unit</label>
                                 <select
                                   value={item.purchase_unit}
                                   onChange={e => {
                                     const pu = e.target.value;
-                                    if (pu === v?.packaging_type) {
+                                    const isPkg = pu !== baseUom && pu !== 'PCS';
+                                    if (isPkg) {
+                                      const defaultUpp = (pu === v?.packaging_type && v?.units_per_pack) ? v.units_per_pack : 1;
                                       handleUpdateItem(index, {
                                         purchase_unit: pu,
                                         package_quantity: 1,
-                                        units_per_package: v.units_per_pack || 1,
-                                        quantity: 1 * (v.units_per_pack || 1)
+                                        units_per_package: defaultUpp,
+                                        quantity: 1 * defaultUpp
                                       });
                                     } else {
                                       handleUpdateItem(index, {
@@ -364,31 +373,63 @@ export default function PurchasesClient({
                                   className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm disabled:bg-gray-100"
                                 >
                                   {v && <option value={baseUom}>{baseUom}</option>}
-                                  {hasPackage && <option value={v.packaging_type}>{v.packaging_type}</option>}
+                                  {v && baseUom !== 'PCS' && <option value="PCS">PCS</option>}
+                                  <optgroup label="Packages">
+                                    {hasPackage && v?.packaging_type && !PACKAGE_UNITS.includes(v.packaging_type) && (
+                                      <option value={v.packaging_type}>{v.packaging_type}</option>
+                                    )}
+                                    {PACKAGE_UNITS.map(pu => (
+                                      <option key={pu} value={pu}>{pu}</option>
+                                    ))}
+                                  </optgroup>
                                 </select>
                               </div>
 
                               {isPackage ? (
-                                <div className="w-full sm:w-28">
-                                  <label className="block text-xs font-bold text-gray-700 mb-1">Package Qty</label>
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    required
-                                    value={item.package_quantity || ''}
-                                    onChange={e => {
-                                      const val = parseInt(e.target.value) || 0;
-                                      handleUpdateItem(index, {
-                                        package_quantity: val,
-                                        quantity: val * (item.units_per_package || 1)
-                                      });
-                                    }}
-                                    className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm"
-                                  />
-                                  <p className="text-[10px] text-gray-500 mt-1 whitespace-nowrap">Base: {item.quantity} {baseUom}</p>
+                                <div className="flex gap-2 shrink-0">
+                                  <div className="w-20">
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">Pkg Qty</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      required
+                                      value={item.package_quantity || ''}
+                                      onChange={e => {
+                                        const val = parseInt(e.target.value) || 0;
+                                        handleUpdateItem(index, {
+                                          package_quantity: val,
+                                          quantity: val * (item.units_per_package || 1)
+                                        });
+                                      }}
+                                      className="block w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-center pb-2 text-gray-400 font-bold">×</div>
+                                  <div className="w-20">
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">Units/{item.purchase_unit}</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      required
+                                      value={item.units_per_package || ''}
+                                      onChange={e => {
+                                        const val = parseInt(e.target.value) || 0;
+                                        handleUpdateItem(index, {
+                                          units_per_package: val,
+                                          quantity: (item.package_quantity || 1) * val
+                                        });
+                                      }}
+                                      className="block w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="flex flex-col justify-end pb-3 pl-1">
+                                    <p className="text-xs font-black text-indigo-700 whitespace-nowrap">
+                                      = {item.quantity} {baseUom}
+                                    </p>
+                                  </div>
                                 </div>
                               ) : (
-                                <div className="w-full sm:w-28">
+                                <div className="w-full sm:w-28 shrink-0">
                                   <label className="block text-xs font-bold text-gray-700 mb-1">Quantity</label>
                                   <input
                                     type="number"
