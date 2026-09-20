@@ -64,14 +64,14 @@ export default function PurchasesClient({
   const openNewPurchaseModal = () => {
     setFormStep('edit')
     setSupplierId('')
-    setItems([{ variant_id: '', purchase_unit: 'PCS', quantity: 1, purchase_cost: 0 }])
+    setItems([{ variant_id: '', purchase_unit: 'PCS', package_quantity: undefined, units_per_package: 1, quantity: 1, purchase_cost: 0 }])
     setIdempotencyKey(crypto.randomUUID())
     setError(null)
     setIsModalOpen(true)
   }
 
   const handleAddItem = () => {
-    setItems([...items, { variant_id: '', purchase_unit: 'PCS', quantity: 1, purchase_cost: 0 }])
+    setItems([...items, { variant_id: '', purchase_unit: 'PCS', package_quantity: undefined, units_per_package: 1, quantity: 1, purchase_cost: 0 }])
   }
 
   const handleUpdateItem = (index: number, updates: Partial<PurchaseItem>) => {
@@ -156,9 +156,55 @@ export default function PurchasesClient({
       return;
     }
 
+    // 7. Before RPC submission, normalize the complete payload again.
+    const normalizedItems = items.map(item => {
+      const v = variants.find(v => v.id === item.variant_id);
+      const baseUom = v?.unit_of_measure || 'PCS';
+      const isPkg = item.purchase_unit !== baseUom && item.purchase_unit !== 'PCS';
+
+      if (isPkg) {
+        return {
+          variant_id: item.variant_id,
+          package_unit: item.purchase_unit, // the normalized package unit
+          package_quantity: item.package_quantity || 1,
+          units_per_package: item.units_per_package || 1,
+          quantity: (item.package_quantity || 1) * (item.units_per_package || 1),
+          purchase_cost: item.purchase_cost
+        };
+      } else {
+        return {
+          variant_id: item.variant_id,
+          package_unit: 'PCS', // always PCS for base units
+          package_quantity: undefined,
+          units_per_package: 1,
+          quantity: item.quantity || 1,
+          purchase_cost: item.purchase_cost
+        };
+      }
+    });
+
+    // 8. Add a final client-side invariant check
+    for (const item of normalizedItems) {
+      if (item.package_unit === 'PCS' && item.units_per_package !== 1) {
+        setError('Invariant Error: PCS item has units_per_package != 1');
+        return;
+      }
+      if (item.package_unit !== 'PCS') {
+        if (!item.package_quantity || !item.units_per_package) {
+          setError('Invariant Error: Package item missing quantity or units');
+          return;
+        }
+        if (item.quantity !== item.package_quantity * item.units_per_package) {
+          setError('Invariant Error: Base quantity mismatch');
+          return;
+        }
+      }
+    }
+
     startTransition(async () => {
-      // Pass the package fields to the backend
-      const result = await createPurchaseOrder(storeId, supplierId, idempotencyKey, items)
+      console.log("Submitting normalized payload:", normalizedItems);
+      const result = await createPurchaseOrder(storeId, supplierId, idempotencyKey, normalizedItems as any)
+
       
       if (result?.error) {
         setError(result.error)
@@ -356,16 +402,16 @@ export default function PurchasesClient({
                                       const defaultUpp = (pu === v?.packaging_type && v?.units_per_pack) ? v.units_per_pack : 1;
                                       handleUpdateItem(index, {
                                         purchase_unit: pu,
-                                        package_quantity: 1,
+                                        package_quantity: item.package_quantity || 1,
                                         units_per_package: defaultUpp,
-                                        quantity: 1 * defaultUpp
+                                        quantity: (item.package_quantity || 1) * defaultUpp
                                       });
                                     } else {
                                       handleUpdateItem(index, {
                                         purchase_unit: pu,
                                         package_quantity: undefined,
                                         units_per_package: 1,
-                                        quantity: 1
+                                        quantity: item.quantity || 1
                                       });
                                     }
                                   }}
