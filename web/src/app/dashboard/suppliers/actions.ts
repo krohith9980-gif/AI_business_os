@@ -155,3 +155,96 @@ export async function getSupplierLedger(supplierId: string) {
     return { error: 'An unexpected error occurred' }
   }
 }
+
+export async function getLedgerPurchaseDetails(referenceId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return { error: 'Authentication required' }
+
+  try {
+    // 1. Try to find an Invoice Purchase (purchase_orders)
+    const { data: po, error: poError } = await supabase
+      .from('purchase_orders')
+      .select(`
+        *,
+        suppliers ( name ),
+        po_items (
+          id,
+          quantity_ordered,
+          quantity_received,
+          purchase_cost,
+          package_quantity,
+          package_unit,
+          units_per_package,
+          gross_purchase_cost,
+          discount_percentage,
+          discount_amount,
+          batch_number,
+          mfg_date,
+          expiry_date,
+          product_variants (
+            sku,
+            unit_of_measure,
+            products ( name )
+          )
+        )
+      `)
+      .eq('id', referenceId)
+      .maybeSingle()
+
+    if (po) {
+      return { 
+        success: true, 
+        type: 'INVOICE', 
+        document: po 
+      }
+    }
+
+    // 2. Try to find a Goods Receipt (purchase_receipts)
+    const { data: receipt, error: receiptError } = await supabase
+      .from('purchase_receipts')
+      .select(`
+        *,
+        purchase_orders (
+          suppliers ( name )
+        ),
+        purchase_receipt_items (
+          id,
+          quantity_received,
+          batch_number,
+          mfg_date,
+          expiry_date,
+          po_items (
+            purchase_cost,
+            package_quantity,
+            package_unit,
+            units_per_package,
+            gross_purchase_cost,
+            discount_percentage,
+            discount_amount,
+            product_variants (
+              sku,
+              unit_of_measure,
+              products ( name )
+            )
+          )
+        )
+      `)
+      .eq('id', referenceId)
+      .maybeSingle()
+
+    if (receipt) {
+      return {
+        success: true,
+        type: 'RECEIPT',
+        document: receipt
+      }
+    }
+
+    return { error: 'Document not found for this ledger entry.' }
+  } catch (err: unknown) {
+    console.error('Unexpected error in getLedgerPurchaseDetails:', err)
+    return { error: 'An unexpected error occurred' }
+  }
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useTransition, useEffect } from 'react'
-import { addSupplier, editSupplier, getSupplierLedger } from './actions'
+import { addSupplier, editSupplier, getSupplierLedger, getLedgerPurchaseDetails } from './actions'
 import { recordSupplierPayment } from '../purchases/invoice-actions'
 import { useRouter } from 'next/navigation'
 import { formatCurrency } from '@/utils/currency'
@@ -73,6 +73,12 @@ export default function SuppliersClient({
   const [payRef, setPayRef] = useState('')
   const [payNotes, setPayNotes] = useState('')
 
+  // Document state
+  const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false)
+  const [documentDetails, setDocumentDetails] = useState<any>(null)
+  const [isLoadingDocument, setIsLoadingDocument] = useState(false)
+  const [documentError, setDocumentError] = useState<string | null>(null)
+
   const resetForm = () => {
     setEditingId(null)
     setName('')
@@ -127,6 +133,21 @@ export default function SuppliersClient({
     else setLedgerEntries(result.ledger || [])
     
     setIsLoadingLedger(false)
+  }
+
+  const handleViewDocument = async (referenceId: string) => {
+    setIsDocumentModalOpen(true)
+    setIsLoadingDocument(true)
+    setDocumentError(null)
+    setDocumentDetails(null)
+
+    const res = await getLedgerPurchaseDetails(referenceId)
+    if (res.error) {
+      setDocumentError(res.error)
+    } else {
+      setDocumentDetails(res)
+    }
+    setIsLoadingDocument(false)
   }
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -394,7 +415,19 @@ export default function SuppliersClient({
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600">{entry.notes}</td>
                           <td className="px-4 py-2 text-sm text-red-600 text-right font-medium">
-                            {entry.amount > 0 ? formatCurrency(entry.amount) : '-'}
+                            {entry.amount > 0 ? (
+                              <div className="flex flex-col items-end">
+                                <span>{formatCurrency(entry.amount)}</span>
+                                {entry.transaction_type === 'PURCHASE' && entry.reference_id && (
+                                  <button 
+                                    onClick={() => handleViewDocument(entry.reference_id)}
+                                    className="text-xs text-indigo-600 hover:text-indigo-900 mt-1"
+                                  >
+                                    {entry.notes?.toLowerCase().includes('invoice') ? 'View Bill' : 'View Receipt'}
+                                  </button>
+                                )}
+                              </div>
+                            ) : '-'}
                           </td>
                           <td className="px-4 py-2 text-sm text-green-600 text-right font-medium">
                             {entry.amount < 0 ? formatCurrency(Math.abs(entry.amount)) : '-'}
@@ -408,6 +441,123 @@ export default function SuppliersClient({
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Modal */}
+      {isDocumentModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+              <h3 className="text-lg font-medium text-gray-900">
+                {documentDetails?.type === 'INVOICE' ? 'Invoice Purchase Details' : 
+                 documentDetails?.type === 'RECEIPT' ? 'Goods Receipt Details' : 'Document Details'}
+              </h3>
+              <button onClick={() => setIsDocumentModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 bg-white space-y-6">
+              {isLoadingDocument && <p className="text-gray-600">Loading document details...</p>}
+              {documentError && <p className="text-red-600 bg-red-50 p-3 rounded">{documentError}</p>}
+              
+              {!isLoadingDocument && documentDetails && documentDetails.document && (
+                <div>
+                  <div className="grid grid-cols-2 gap-4 mb-6 bg-gray-50 p-4 rounded border">
+                    <div>
+                      <p className="text-sm text-gray-500">Supplier</p>
+                      <p className="font-medium text-gray-900">
+                        {documentDetails.type === 'INVOICE' 
+                          ? documentDetails.document.suppliers?.name 
+                          : documentDetails.document.purchase_orders?.suppliers?.name}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Date</p>
+                      <p className="font-medium text-gray-900">
+                        {new Date(documentDetails.type === 'INVOICE' 
+                          ? documentDetails.document.created_at 
+                          : documentDetails.document.received_at || documentDetails.document.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    {documentDetails.type === 'INVOICE' && (
+                      <div>
+                        <p className="text-sm text-gray-500">Invoice No</p>
+                        <p className="font-medium text-gray-900">{documentDetails.document.invoice_number || 'N/A'}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="overflow-x-auto border rounded">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Product</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Pkg Qty/Unit</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Units/Pkg</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Base Qty</th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-600 uppercase">Rate</th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-600 uppercase">Gross</th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-600 uppercase">Disc</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Batch/Mfg/Exp</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {documentDetails.type === 'INVOICE' ? (
+                          documentDetails.document.po_items.map((item: any) => (
+                            <tr key={item.id}>
+                              <td className="px-3 py-2 text-sm text-gray-900">{item.product_variants?.products?.name} ({item.product_variants?.sku})</td>
+                              <td className="px-3 py-2 text-sm text-gray-900">{item.package_quantity || '-'} {item.package_unit || '-'}</td>
+                              <td className="px-3 py-2 text-sm text-gray-900">{item.units_per_package || '-'}</td>
+                              <td className="px-3 py-2 text-sm text-gray-900">{item.quantity_ordered} {item.product_variants?.unit_of_measure}</td>
+                              <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.purchase_cost)}</td>
+                              <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.gross_purchase_cost || (item.quantity_ordered * item.purchase_cost))}</td>
+                              <td className="px-3 py-2 text-sm text-gray-900 text-right">{item.discount_amount ? formatCurrency(item.discount_amount) : '-'}</td>
+                              <td className="px-3 py-2 text-sm text-gray-600">
+                                {item.batch_number ? `B: ${item.batch_number}` : '-'}
+                                {item.mfg_date ? ` M: ${item.mfg_date}` : ''}
+                                {item.expiry_date ? ` E: ${item.expiry_date}` : ''}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          documentDetails.document.purchase_receipt_items.map((rItem: any) => {
+                            const item = rItem.po_items
+                            return (
+                              <tr key={rItem.id}>
+                                <td className="px-3 py-2 text-sm text-gray-900">{item.product_variants?.products?.name} ({item.product_variants?.sku})</td>
+                                <td className="px-3 py-2 text-sm text-gray-900">{item.package_quantity || '-'} {item.package_unit || '-'}</td>
+                                <td className="px-3 py-2 text-sm text-gray-900">{item.units_per_package || '-'}</td>
+                                <td className="px-3 py-2 text-sm text-gray-900">{rItem.quantity_received} {item.product_variants?.unit_of_measure}</td>
+                                <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.purchase_cost)}</td>
+                                <td className="px-3 py-2 text-sm text-gray-900 text-right">{formatCurrency(rItem.quantity_received * item.purchase_cost)}</td>
+                                <td className="px-3 py-2 text-sm text-gray-900 text-right">
+                                  -
+                                </td>
+                                <td className="px-3 py-2 text-sm text-gray-600">
+                                  {rItem.batch_number ? `B: ${rItem.batch_number}` : '-'}
+                                  {rItem.mfg_date ? ` M: ${rItem.mfg_date}` : ''}
+                                  {rItem.expiry_date ? ` E: ${rItem.expiry_date}` : ''}
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-4 flex justify-end">
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600">Document Total</p>
+                      <p className="text-xl font-bold text-gray-900">
+                        {formatCurrency(documentDetails.type === 'INVOICE' ? documentDetails.document.total : documentDetails.document.purchase_receipt_items.reduce((acc: number, rItem: any) => acc + (rItem.quantity_received * rItem.po_items.purchase_cost), 0))}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
