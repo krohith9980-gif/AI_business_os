@@ -24,7 +24,7 @@ export default async function PurchaseViewPage({ params }: { params: Promise<{ i
     .select(`
       *,
       suppliers ( name ),
-      po_items (
+      po_items!po_items_po_id_fkey (
         id,
         quantity_ordered,
         quantity_received,

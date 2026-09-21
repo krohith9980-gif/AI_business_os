@@ -270,7 +270,15 @@ export default function PurchasesClient({
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{po.supplier_name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">
+                      <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
+                        po.status === 'PENDING' ? 'bg-gray-100 text-gray-800' :
+                        po.status === 'SUPPLIER_CONFIRMED' ? 'bg-green-100 text-green-800' :
+                        po.status === 'PARTIAL_RECEIVED' ? 'bg-yellow-100 text-yellow-800' :
+                        po.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                        po.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                        po.status === 'CANCELLED' ? 'bg-gray-100 text-gray-500' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
                         {po.status}
                       </span>
                     </td>
