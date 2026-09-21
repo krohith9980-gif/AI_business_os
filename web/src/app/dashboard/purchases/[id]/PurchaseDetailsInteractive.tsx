@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { recordSupplierResponse, recordGoodsReceipt } from './actions'
+import { recordSupplierPayment } from '../invoice-actions'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function PurchaseDetailsInteractive({ purchase }: { purchase: any }) {
@@ -24,7 +25,7 @@ export default function PurchaseDetailsInteractive({ purchase }: { purchase: any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const getBadgeClass = (status: string) => {
     switch (status) {
-      case 'PENDING': return 'bg-yellow-100 text-yellow-800'
+      case 'PENDING': return 'bg-gray-100 text-gray-800'
       case 'SUPPLIER_CONFIRMED': return 'bg-blue-100 text-blue-800'
       case 'PARTIAL_RECEIVED': return 'bg-purple-100 text-purple-800'
       case 'COMPLETED': return 'bg-green-100 text-green-800'
@@ -131,11 +132,26 @@ function ReceiptModal({ purchase, onClose }: { purchase: any, onClose: () => voi
       already_received: item.quantity_received || 0,
       remaining: (item.quantity_ordered || item.quantity) - (item.quantity_received || 0),
       quantity_received: (item.quantity_ordered || item.quantity) - (item.quantity_received || 0),
+      purchase_cost: item.purchase_cost || 0,
       batch_number: '',
       mfg_date: '',
       expiry_date: ''
     })).filter((i: any) => i.remaining > 0)
   })
+
+  const [paymentOption, setPaymentOption] = useState<'CREDIT' | 'FULL' | 'PARTIAL'>('CREDIT')
+  const [amountPaid, setAmountPaid] = useState<number>(0)
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH')
+
+  const totalReceiptValue = items.reduce((sum: number, item: any) => sum + (item.quantity_received * item.purchase_cost), 0)
+
+  React.useEffect(() => {
+    if (paymentOption === 'FULL') {
+      setAmountPaid(totalReceiptValue)
+    } else if (paymentOption === 'CREDIT') {
+      setAmountPaid(0)
+    }
+  }, [paymentOption, totalReceiptValue])
 
   const handleUpdateItem = (index: number, field: string, value: any) => {
     const newItems = [...items]
@@ -171,9 +187,28 @@ function ReceiptModal({ purchase, onClose }: { purchase: any, onClose: () => voi
     if (res.error) {
       setError(res.error)
       setIsPending(false)
-    } else {
-      onClose()
+      return
     }
+
+    if (paymentOption !== 'CREDIT' && amountPaid > 0) {
+      const paymentRes = await recordSupplierPayment(
+        purchase.store_id,
+        purchase.supplier_id || purchase.suppliers?.id,
+        crypto.randomUUID(),
+        amountPaid,
+        paymentMethod,
+        '',
+        'Payment for goods receipt'
+      )
+      
+      if (paymentRes.error) {
+        setError(`Goods received successfully, but payment recording failed: ${paymentRes.error}`)
+        setIsPending(false)
+        return
+      }
+    }
+    
+    onClose()
   }
 
   return (
@@ -254,6 +289,60 @@ function ReceiptModal({ purchase, onClose }: { purchase: any, onClose: () => voi
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-6 p-4 border rounded-lg bg-white shadow-sm">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 border-b pb-2">Payment Details</h3>
+              <div className="mb-4">
+                <span className="block text-sm font-bold text-gray-700 mb-1">Receipt Total Value</span>
+                <span className="text-xl font-bold text-gray-900">₹{totalReceiptValue.toFixed(2)}</span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Payment Action</label>
+                  <select 
+                    value={paymentOption}
+                    onChange={(e) => setPaymentOption(e.target.value as any)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm"
+                  >
+                    <option value="CREDIT">Credit (Pay Later)</option>
+                    <option value="FULL">Paid in Full</option>
+                    <option value="PARTIAL">Partially Paid</option>
+                  </select>
+                </div>
+                
+                {paymentOption !== 'CREDIT' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Amount Paid</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        step="0.01"
+                        max={totalReceiptValue}
+                        value={amountPaid}
+                        onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
+                        disabled={paymentOption === 'FULL'}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm disabled:bg-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Payment Method</label>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm"
+                      >
+                        <option value="CASH">Cash</option>
+                        <option value="UPI">UPI</option>
+                        <option value="CARD">Card</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
           

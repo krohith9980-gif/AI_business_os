@@ -62,18 +62,22 @@ export default async function PurchaseViewPage({ params }: { params: Promise<{ i
       </div>
 
       <div className="bg-white p-6 shadow-sm rounded-lg border border-gray-200">
-        <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
           <div>
-            <span className="text-gray-500">Date:</span>
-            <p className="font-medium text-gray-900">{new Date(purchase.created_at).toLocaleString()}</p>
+            <span className="text-gray-500 block mb-1">Date:</span>
+            <p className="font-bold text-gray-900">{new Date(purchase.created_at).toLocaleString()}</p>
           </div>
           <div>
-            <span className="text-gray-500">Supplier:</span>
-            <p className="font-medium text-gray-900">{purchase.suppliers?.name || 'Unknown'}</p>
+            <span className="text-gray-500 block mb-1">Supplier:</span>
+            <p className="font-bold text-gray-900">{purchase.suppliers?.name || 'Unknown'}</p>
           </div>
           <div>
-            <span className="text-gray-500">Payment Status:</span>
-            <p className="font-medium text-gray-900">{purchase.payment_status}</p>
+            <span className="text-gray-500 block mb-1">Order Status:</span>
+            <p className="font-bold text-gray-900">{purchase.status}</p>
+          </div>
+          <div>
+            <span className="text-gray-500 block mb-1">Payment Status:</span>
+            <p className="font-bold text-gray-900">{purchase.payment_status}</p>
           </div>
         </div>
         
@@ -106,10 +110,15 @@ export default async function PurchaseViewPage({ params }: { params: Promise<{ i
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900 text-right">
                     {item.package_unit && item.package_unit !== 'PCS' && item.package_unit !== (item.product_variants?.unit_of_measure || 'PCS') ? (
-                      <>
+                      <div className="flex flex-col items-end">
                         <div className="font-bold">{item.package_quantity} {item.package_unit}</div>
-                        <div className="text-xs text-gray-500">({item.quantity_ordered} {item.product_variants?.unit_of_measure || 'PCS'})</div>
-                      </>
+                        <div className="text-xs text-gray-500">
+                          {item.units_per_package} {item.product_variants?.unit_of_measure || 'PCS'}/{item.package_unit}
+                        </div>
+                        <div className="text-xs text-indigo-600 font-semibold mt-0.5">
+                          Total: {item.quantity_ordered} {item.product_variants?.unit_of_measure || 'PCS'}
+                        </div>
+                      </div>
                     ) : (
                       <div className="font-bold">{item.quantity_ordered} {item.product_variants?.unit_of_measure || 'PCS'}</div>
                     )}
