@@ -219,8 +219,8 @@ function ReceiptModal({ purchase, onClose }: { purchase: any, onClose: () => voi
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 font-bold text-xl">&times;</button>
         </div>
         
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
-          <div className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="p-6 space-y-6 flex-1 overflow-y-auto">
             {error && (
               <div className="p-4 bg-red-50 text-red-700 rounded-md text-sm font-medium border border-red-200">
                 {error}
@@ -231,59 +231,59 @@ function ReceiptModal({ purchase, onClose }: { purchase: any, onClose: () => voi
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {items.map((item: any, index: number) => (
                 <div key={item.po_item_id} className="p-4 border rounded-lg bg-gray-50">
-                  <div className="font-bold text-lg mb-2">{item.name}</div>
+                  <div className="font-bold text-lg mb-2 text-gray-900">{item.name}</div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div>
-                      <span className="block text-xs font-bold text-gray-500 uppercase">Ordered</span>
-                      <span className="font-medium">{item.ordered}</span>
+                      <span className="block text-xs font-bold text-gray-700 uppercase">Ordered</span>
+                      <span className="font-medium text-gray-900">{item.ordered}</span>
                     </div>
                     <div>
-                      <span className="block text-xs font-bold text-gray-500 uppercase">Previously Received</span>
-                      <span className="font-medium">{item.already_received}</span>
+                      <span className="block text-xs font-bold text-gray-700 uppercase">Previously Received</span>
+                      <span className="font-medium text-gray-900">{item.already_received}</span>
                     </div>
                     <div>
-                      <span className="block text-xs font-bold text-gray-500 uppercase">Remaining</span>
-                      <span className="font-bold text-indigo-600">{item.remaining}</span>
+                      <span className="block text-xs font-bold text-gray-700 uppercase">Remaining</span>
+                      <span className="font-bold text-indigo-700">{item.remaining}</span>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Receiving Qty</label>
+                      <label className="block text-sm font-bold text-gray-900 mb-1">Receiving Qty</label>
                       <input 
                         type="number" 
                         min="0" 
                         max={item.remaining} 
                         value={item.quantity_received}
                         onChange={e => handleUpdateItem(index, 'quantity_received', parseInt(e.target.value) || 0)}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm" 
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm placeholder-gray-400" 
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Batch Number</label>
+                      <label className="block text-sm font-bold text-gray-900 mb-1">Batch Number</label>
                       <input 
                         type="text" 
                         value={item.batch_number}
                         onChange={e => handleUpdateItem(index, 'batch_number', e.target.value)}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm" 
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm placeholder-gray-400" 
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">MFG Date</label>
+                      <label className="block text-sm font-bold text-gray-900 mb-1">MFG Date</label>
                       <input 
                         type="date" 
                         value={item.mfg_date}
                         onChange={e => handleUpdateItem(index, 'mfg_date', e.target.value)}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm" 
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm placeholder-gray-400" 
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Expiry Date</label>
+                      <label className="block text-sm font-bold text-gray-900 mb-1">Expiry Date</label>
                       <input 
                         type="date" 
                         value={item.expiry_date}
                         onChange={e => handleUpdateItem(index, 'expiry_date', e.target.value)}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm" 
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm placeholder-gray-400" 
                       />
                     </div>
                   </div>
@@ -291,20 +291,20 @@ function ReceiptModal({ purchase, onClose }: { purchase: any, onClose: () => voi
               ))}
             </div>
 
-            <div className="mt-6 p-4 border rounded-lg bg-white shadow-sm">
+            <div className="mt-6 p-4 border rounded-lg bg-white shadow-sm shrink-0">
               <h3 className="text-lg font-bold text-gray-900 mb-4 border-b pb-2">Payment Details</h3>
               <div className="mb-4">
-                <span className="block text-sm font-bold text-gray-700 mb-1">Receipt Total Value</span>
+                <span className="block text-sm font-bold text-gray-800 mb-1">Receipt Total Value</span>
                 <span className="text-xl font-bold text-gray-900">₹{totalReceiptValue.toFixed(2)}</span>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Payment Action</label>
+                  <label className="block text-sm font-bold text-gray-900 mb-1">Payment Action</label>
                   <select 
                     value={paymentOption}
                     onChange={(e) => setPaymentOption(e.target.value as any)}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm"
                   >
                     <option value="CREDIT">Credit (Pay Later)</option>
                     <option value="FULL">Paid in Full</option>
@@ -315,7 +315,7 @@ function ReceiptModal({ purchase, onClose }: { purchase: any, onClose: () => voi
                 {paymentOption !== 'CREDIT' && (
                   <>
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">Amount Paid</label>
+                      <label className="block text-sm font-bold text-gray-900 mb-1">Amount Paid</label>
                       <input 
                         type="number" 
                         min="0"
@@ -324,15 +324,15 @@ function ReceiptModal({ purchase, onClose }: { purchase: any, onClose: () => voi
                         value={amountPaid}
                         onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
                         disabled={paymentOption === 'FULL'}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm disabled:bg-gray-100"
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm disabled:bg-gray-100 disabled:text-gray-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">Payment Method</label>
+                      <label className="block text-sm font-bold text-gray-900 mb-1">Payment Method</label>
                       <select
                         value={paymentMethod}
                         onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm"
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm"
                       >
                         <option value="CASH">Cash</option>
                         <option value="UPI">UPI</option>
@@ -346,7 +346,7 @@ function ReceiptModal({ purchase, onClose }: { purchase: any, onClose: () => voi
             </div>
           </div>
           
-          <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-3 sticky bottom-0">
+          <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}
