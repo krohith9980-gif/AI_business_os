@@ -169,7 +169,7 @@ export async function getLedgerPurchaseDetails(referenceId: string) {
       .select(`
         *,
         suppliers ( name ),
-        po_items (
+        po_items!po_items_po_id_fkey (
           id,
           quantity_ordered,
           quantity_received,
@@ -215,7 +215,7 @@ export async function getLedgerPurchaseDetails(referenceId: string) {
           batch_number,
           mfg_date,
           expiry_date,
-          po_items (
+          po_items!purchase_receipt_items_po_item_id_po_item_po_id_fkey (
             purchase_cost,
             package_quantity,
             package_unit,
