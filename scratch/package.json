@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
     "pg": "^8.23.0"
   },
   "name": "scratch",

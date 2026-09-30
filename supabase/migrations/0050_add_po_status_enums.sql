@@ -1,0 +1,5 @@
+-- Migration 0050: Add PO Status Enums
+
+ALTER TYPE public.po_status ADD VALUE IF NOT EXISTS 'PENDING';
+ALTER TYPE public.po_status ADD VALUE IF NOT EXISTS 'SUPPLIER_CONFIRMED';
+ALTER TYPE public.po_status ADD VALUE IF NOT EXISTS 'REJECTED';
