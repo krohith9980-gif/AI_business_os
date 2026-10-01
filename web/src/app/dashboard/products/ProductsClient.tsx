@@ -106,6 +106,55 @@ export default function ProductsClient({
   const [chemicalName, setChemicalName] = useState('')
   const [concentration, setConcentration] = useState('')
   const [formulation, setFormulation] = useState('')
+  const [agriculturalUse, setAgriculturalUse] = useState<string[]>([])
+
+  const toggleAgriUse = (tag: string) => {
+    setAgriculturalUse(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])
+  }
+
+  const AGRI_USE_OPTIONS = [
+    { group: 'Pest Control (తెగుళ్ళు/పురుగులు)', options: [
+      'సాధారణ పురుగుల నియంత్రణ (General Pest)',
+      'రసం పీల్చే పురుగులు (Sucking Pests)',
+      'కాయతొలుచు పురుగులు (Pod Borer)',
+      'కాండం తొలుచు పురుగులు (Stem Borer)',
+      'ఆకులు తినే పురుగులు (Leaf Eating Pests)',
+      'తెల్లదోమ (Whitefly)',
+      'తామర పురుగు (Thrips)',
+      'పేను (Aphids)',
+      'ఆకు ముడత పురుగు (Leaf Folder)',
+      'బోల్వార్మ్ / కాయతొలుచు పురుగులు (Bollworm)',
+      'మైట్ / ఎర్ర పురుగు (Mites)',
+      'నిమటోడ్లు (Nematodes)'
+    ]},
+    { group: 'Disease Control (వ్యాధులు)', options: [
+      'శిలీంధ్ర వ్యాధులు (Fungal)',
+      'బాక్టీరియా వ్యాధులు (Bacterial)',
+      'ఆకు మచ్చలు (Leaf Spot)',
+      'బూజు (Mildew)',
+      'కుళ్ళు వ్యాధులు (Rot)',
+      'వాడిపోవు వ్యాధులు (Wilt)'
+    ]},
+    { group: 'Weed Control (కలుపు)', options: [
+      'సాధారణ కలుపు నియంత్రణ (General Weed)',
+      'గడ్డి జాతి కలుపు (Grassy Weeds)',
+      'వెడల్పు ఆకుల కలుపు (Broadleaf Weeds)'
+    ]},
+    { group: 'Crop Association (పంటలు)', options: [
+      'పత్తి (Cotton)',
+      'వరి (Paddy)',
+      'మిరప (Chilli)',
+      'మొక్కజొన్న (Maize)',
+      'కంది (Pigeon Pea)',
+      'వేరుశెనగ (Groundnut)',
+      'కూరగాయలు (Vegetables)'
+    ]},
+    { group: 'Other', options: [
+      'Nutrient / ఎరువులు',
+      'Growth Regulator / పెరుగుదల',
+      'Biological / జీవ సంబంధ'
+    ]}
+  ];
 
   const resetForm = () => {
     setName('')
@@ -137,9 +186,10 @@ export default function ProductsClient({
     setError(null)
     setEditingProductId(null)
     setEditingVariantId(null)
+    setAgriculturalUse([])
   }
 
-  const handleEdit = (product: Product) => {
+  const handleEdit = (product: Product & { agricultural_use?: string[] }) => {
     resetForm()
     setEditingProductId(product.product_id)
     setEditingVariantId(product.id)
@@ -161,6 +211,7 @@ export default function ProductsClient({
       setFormulation(product.attributes.formulation || '')
     }
 
+    setAgriculturalUse(product.agricultural_use || [])
     setPackagingType(product.packaging_type || 'NONE')
     setUnitsPerPack(product.units_per_pack || 1)
     setItemUnit(product.unit_of_measure || 'PCS')
@@ -331,6 +382,7 @@ export default function ProductsClient({
       formulation: formulation || null
     }
     formData.append('attributes', JSON.stringify(attributesData))
+    formData.append('agricultural_use', JSON.stringify(agriculturalUse))
 
     startTransition(async () => {
       let result;
@@ -691,6 +743,45 @@ export default function ProductsClient({
                     <input type="text" name="formulation" id="formulation" value={formulation} onChange={e => setFormulation(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="e.g. SL, EC" />
                   </div>
                   
+                  {/* Agricultural Use Classification */}
+                  <div className="sm:col-span-2 mt-4 pb-2 border-b border-gray-200">
+                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide flex items-center justify-between">
+                      <span>వ్యవసాయ ఉపయోగం (Agricultural Use)</span>
+                      <span className="text-[10px] font-normal text-gray-500 normal-case bg-green-50 text-green-700 px-2 py-0.5 rounded border border-green-200">Optional for non-agro</span>
+                    </h4>
+                  </div>
+                  
+                  <div className="sm:col-span-2 bg-gray-50 p-4 rounded-md border border-gray-200">
+                    <p className="text-sm text-gray-600 mb-4">Select what this product is used for (Crop, Pest, Disease). This automatically enables Smart Agricultural Recommendations.</p>
+                    
+                    <div className="space-y-6">
+                      {AGRI_USE_OPTIONS.map((group, idx) => (
+                        <div key={idx}>
+                          <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{group.group}</h5>
+                          <div className="flex flex-wrap gap-2">
+                            {group.options.map(tag => {
+                              const isSelected = agriculturalUse.includes(tag);
+                              return (
+                                <button
+                                  type="button"
+                                  key={tag}
+                                  onClick={() => toggleAgriUse(tag)}
+                                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                                    isSelected 
+                                      ? 'bg-green-100 border-green-500 text-green-800 shadow-sm' 
+                                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {tag}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Category & Barcode */}
                   <div className="sm:col-span-2 mt-4 pb-2 border-b border-gray-200">
                     <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Categorization</h4>

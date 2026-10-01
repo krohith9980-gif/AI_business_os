@@ -200,6 +200,16 @@ export async function addProduct(formData: FormData) {
       return { error: rpcError.message || 'Failed to create product. Check SKU/Barcode uniqueness.' }
     }
 
+    let agriculturalUse = null
+    const agriStr = formData.get('agricultural_use')?.toString()
+    if (agriStr) {
+        try { agriculturalUse = JSON.parse(agriStr) } catch {}
+    }
+
+    if (agriculturalUse && data?.product_id) {
+       await supabase.from('products').update({ agricultural_use: agriculturalUse }).eq('id', data.product_id)
+    }
+
     revalidatePath('/dashboard/products')
     revalidatePath('/dashboard/pos')
     return { success: true, data }
@@ -255,6 +265,12 @@ export async function editProduct(formData: FormData) {
     const category_id = categoryIdStr && categoryIdStr !== '' ? categoryIdStr : null
     const barcode = formData.get('barcode')?.toString() || null
     
+    let agriculturalUse = null
+    const agriStr = formData.get('agricultural_use')?.toString()
+    if (agriStr) {
+        try { agriculturalUse = JSON.parse(agriStr) } catch {}
+    }
+
     // Attributes JSON
     let attributes = null
     const attributesStr = formData.get('attributes')?.toString()
@@ -278,7 +294,8 @@ export async function editProduct(formData: FormData) {
       .update({
         name,
         description,
-        category_id
+        category_id,
+        agricultural_use: agriculturalUse
       })
       .eq('id', productId)
       .eq('organization_id', organization_id)

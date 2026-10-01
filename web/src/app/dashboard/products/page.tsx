@@ -97,6 +97,7 @@ export default async function ProductsPage({
           id,
           name,
           description,
+          agricultural_use,
           category:categories (
             id,
             name
@@ -131,7 +132,8 @@ export default async function ProductsPage({
             packaging_type: v.packaging_type,
             units_per_pack: v.units_per_pack,
             item_size: v.item_size,
-            attributes: v.attributes || {}
+            attributes: v.attributes || {},
+            agricultural_use: v.product?.agricultural_use || []
         }))
     }
   }

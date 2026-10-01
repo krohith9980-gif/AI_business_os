@@ -1,53 +1,39 @@
-import { createClient } from '@/utils/supabase/server';
-import { redirect } from 'next/navigation';
-import MappingsClient from './MappingsClient';
+import React from 'react'
+import Link from 'next/link'
 
-export default async function MappingsPage() {
-  const supabase = await createClient();
+export const metadata = {
+  title: 'Agricultural Mappings | AI Business OS',
+}
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    redirect('/auth/login');
-  }
-
-  // Get current user's active organization from memberships
-  const { data: memberships } = await supabase
-    .from('organization_members')
-    .select('organization_id, role')
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .order('created_at', { ascending: true })
-    .limit(1);
-
-  const activeOrgId = memberships?.[0]?.organization_id;
-  const role = memberships?.[0]?.role;
-
-  if (!activeOrgId) {
-    redirect('/dashboard');
-  }
-
-  // Only allow OWNER or MANAGER
-  if (role !== 'OWNER' && role !== 'MANAGER') {
-    return (
-      <div className="container mx-auto p-8">
-        <h1 className="text-2xl font-bold text-red-600">Access Denied</h1>
-        <p className="mt-2 text-gray-700">You must be an owner or manager to access Input Mappings.</p>
-      </div>
-    );
-  }
-
+export default function MappingsRedirectPage() {
   return (
-    <div className="container mx-auto p-4 sm:p-6 lg:p-8">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Agricultural Input Mappings</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Map agricultural input categories to your specific shop products.
-          </p>
+    <div className="p-8 max-w-4xl mx-auto mt-10 text-center bg-white rounded-lg shadow-sm border border-gray-200">
+      <div className="mb-6 flex justify-center">
+        <div className="h-20 w-20 bg-green-100 rounded-full flex items-center justify-center text-green-600">
+          <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
         </div>
       </div>
-      
-      <MappingsClient organizationId={activeOrgId} />
+      <h1 className="text-3xl font-bold text-gray-900 mb-4">Mappings Simplified!</h1>
+      <p className="text-lg text-gray-600 mb-8">
+        You no longer need to manually map intelligence categories to products on a separate screen. 
+        Instead, you can now directly assign "Agricultural Uses" (Crop, Pest, Disease) to products when you create or edit them.
+      </p>
+      <div className="flex justify-center gap-4">
+        <Link 
+          href="/dashboard/products" 
+          className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+        >
+          Go to Products
+        </Link>
+        <Link 
+          href="/dashboard/intelligence/agri-recommendations" 
+          className="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+        >
+          View Recommendations
+        </Link>
+      </div>
     </div>
-  );
+  )
 }
