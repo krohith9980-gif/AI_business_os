@@ -79,6 +79,7 @@ export default async function POSPage() {
       packaging_type,
       units_per_pack,
       item_size,
+      attributes,
       product_id,
       product:products!inner (name)
     `)
@@ -88,8 +89,8 @@ export default async function POSPage() {
   // 4. Fetch Inventory
   const storeIdsToFetch = stores.map(s => s.id)
   const { data: inventoryData } = await supabase
-    .from('vw_inventory_available')
-    .select('store_id, variant_id, available_stock')
+    .from('vw_batch_inventory')
+    .select('store_id, variant_id, batch_number, mfg_date, expiry_date, available_stock')
     .in('store_id', storeIdsToFetch)
     
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,7 +104,8 @@ export default async function POSPage() {
     unit_of_measure: v.unit_of_measure,
     packaging_type: v.packaging_type,
     units_per_pack: v.units_per_pack,
-    item_size: v.item_size
+    item_size: v.item_size,
+    attributes: v.attributes || {}
   }))
 
   return (

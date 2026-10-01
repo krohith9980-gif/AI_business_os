@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 
+export const dynamic = 'force-dynamic'
+
 export default function WorkerLoginPage() {
   const [phone, setPhone] = useState('')
   const [otp, setOtp] = useState('')

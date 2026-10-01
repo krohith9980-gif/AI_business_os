@@ -1,3 +1,3 @@
-SET session_replication_role = replica;
-UPDATE public.organization_members SET role = 'OWNER' WHERE profile_id = (SELECT id FROM auth.users WHERE email = 'krohith9980@gmail.com');
-SET session_replication_role = DEFAULT;
+﻿-- Migration 0034 was an environment-specific owner restoration.
+-- Production was already reconciled separately.
+-- Intentionally retained as a no-op to preserve migration history.

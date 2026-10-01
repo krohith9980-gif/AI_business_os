@@ -61,9 +61,9 @@ export default async function DashboardLayout({
   })
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
+    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row print:block print:min-h-0 print:h-auto print:bg-white">
       {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-gray-900 text-white flex flex-col">
+      <aside className="w-full md:w-64 bg-gray-900 text-white flex flex-col print:hidden">
         <div className="p-4 border-b border-gray-800">
           <h1 className="text-xl font-bold">AI Business OS</h1>
         </div>
@@ -93,9 +93,9 @@ export default async function DashboardLayout({
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-screen overflow-hidden print:block print:overflow-visible print:min-h-0 print:h-auto">
         {/* Top Header */}
-        <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 shrink-0">
+        <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 shrink-0 print:hidden">
           <div className="flex-1"></div>
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-600 truncate max-w-[200px] sm:max-w-xs">
@@ -113,7 +113,7 @@ export default async function DashboardLayout({
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 print:block print:overflow-visible print:p-0 print:m-0 print:h-auto">
           {children}
         </main>
       </div>

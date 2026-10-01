@@ -90,9 +90,13 @@ export default async function ProductsPage({
         unit_of_measure,
         packaging_type,
         units_per_pack,
+        item_size,
+        barcode,
+        attributes,
         product:products!inner (
           id,
           name,
+          description,
           category:categories (
             id,
             name
@@ -102,10 +106,7 @@ export default async function ProductsPage({
       .eq('organization_id', activeOrgId)
       .order('created_at', { ascending: false })
 
-    if (query) {
-      // filtering by SKU
-      supabaseQuery = supabaseQuery.ilike('sku', `%${query}%`)
-    }
+    // Client-side search filters the products now.
 
     const { data, error } = await supabaseQuery
     if (error) console.error('Error fetching variants', error)
@@ -117,7 +118,10 @@ export default async function ProductsPage({
             id: v.id,
             product_id: v.product?.id,
             name: v.product?.name || 'Unknown',
+            description: v.product?.description || '',
             sku: v.sku,
+            barcode: v.barcode || '',
+            category_id: v.product?.category?.id || '',
             category_name: v.product?.category?.name || 'Uncategorized',
             purchase_cost: v.purchase_cost,
             selling_price: v.selling_price,
@@ -125,7 +129,9 @@ export default async function ProductsPage({
             is_active: v.is_active,
             unit_of_measure: v.unit_of_measure,
             packaging_type: v.packaging_type,
-            units_per_pack: v.units_per_pack
+            units_per_pack: v.units_per_pack,
+            item_size: v.item_size,
+            attributes: v.attributes || {}
         }))
     }
   }
@@ -136,8 +142,8 @@ export default async function ProductsPage({
   if (stores && stores.length > 0) {
     const storeIds = stores.map(s => s.id)
     const { data: invData } = await supabase
-      .from('vw_inventory_available')
-      .select('store_id, variant_id, available_stock')
+      .from('vw_batch_inventory')
+      .select('store_id, variant_id, batch_number, mfg_date, expiry_date, available_stock')
       .in('store_id', storeIds)
       
     if (invData) inventory = invData

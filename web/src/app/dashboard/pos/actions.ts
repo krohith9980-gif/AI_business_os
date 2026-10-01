@@ -11,6 +11,7 @@ export async function completeSale(payload: {
     display_quantity: number
     sale_unit: string
     discount_amount: number
+    batch_number: string | null
   }[]
   payments: {
     method: 'CASH' | 'UPI' | 'CARD' | 'SPLIT' | 'CREDIT'
@@ -162,4 +163,51 @@ export async function createCustomerFromPOS(name: string, phone: string, village
     console.error('Create customer error:', err)
     return { error: 'An unexpected error occurred while creating the customer' }
   }
+}
+export async function fetchReceiptData(saleId: string) {
+  const supabase = await createClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return { error: 'Authentication required' }
+  }
+
+  const { data: saleData, error: saleError } = await supabase
+    .from('sales')
+    .select(`
+      *,
+      stores!sales_store_id_fkey ( name ),
+      profiles ( full_name ),
+      customers ( name, phone_number ),
+      sale_items (
+        *,
+        product_variants ( sku, unit_of_measure, packaging_type, units_per_pack, item_size, attributes, products ( name ) )
+      ),
+      payments ( * )
+    `)
+    .eq('id', saleId)
+    .single()
+
+  if (saleError || !saleData) {
+    return { error: saleError?.message || 'Sale not found' }
+  }
+  
+  // Fetch cashier role from organization_members
+  if (saleData.cashier_id && saleData.organization_id) {
+    const { data: memberData } = await supabase
+      .from('organization_members')
+      .select('role')
+      .eq('profile_id', saleData.cashier_id)
+      .eq('organization_id', saleData.organization_id)
+      .single()
+      
+    if (memberData && memberData.role) {
+      if (!saleData.profiles) saleData.profiles = {}
+      saleData.profiles.role = memberData.role
+    }
+  }
+  
+  // Safe mapping is done on the client side since we need mapSaleToReceiptData.
+  // Actually, let's just return the raw saleData to the client and let the client map it.
+  return { success: true, saleData }
 }

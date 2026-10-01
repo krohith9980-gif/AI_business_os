@@ -12,13 +12,66 @@ export async function addSupplier(formData: FormData) {
   }
 
   const name = formData.get('name') as string
+  const storeId = formData.get('storeId') as string
+  const openingBalanceStr = formData.get('openingBalance') as string
+  const openingBalance = openingBalanceStr ? parseFloat(openingBalanceStr) : 0
+  
+  const attributes = formData.get('attributes') as string
+  let parsedAttributes = {}
+  try {
+    if (attributes) parsedAttributes = JSON.parse(attributes)
+  } catch (e) {}
 
   if (!name || name.trim() === '') {
     return { error: 'Name is required' }
   }
+  
+  if (openingBalance < 0) {
+    return { error: 'Opening balance cannot be negative' }
+  }
 
   try {
-    // 1. Determine user's authorized organization securely on the server
+    const { data: supplierId, error: rpcError } = await supabase.rpc('create_supplier_with_opening_balance', {
+      p_name: name.trim(),
+      p_attributes: parsedAttributes,
+      p_store_id: storeId || null,
+      p_opening_balance: openingBalance
+    })
+
+    if (rpcError) {
+      console.error('Supplier creation RPC error:', rpcError)
+      return { error: rpcError.message || 'Failed to create supplier' }
+    }
+
+    revalidatePath('/dashboard/suppliers')
+    return { success: true, id: supplierId }
+  } catch (err: unknown) {
+    console.error('Unexpected error in addSupplier:', err)
+    return { error: 'An unexpected error occurred' }
+  }
+}
+
+export async function editSupplier(formData: FormData) {
+  const supabase = await createClient()
+  
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return { error: 'Authentication required' }
+
+  const id = formData.get('id') as string
+  const name = formData.get('name') as string
+  const isActive = formData.get('is_active') === 'true'
+  const attributes = formData.get('attributes') as string
+  
+  let parsedAttributes = {}
+  try {
+    if (attributes) parsedAttributes = JSON.parse(attributes)
+  } catch (e) {}
+
+  if (!id || !name || name.trim() === '') {
+    return { error: 'ID and Name are required' }
+  }
+
+  try {
     const { data: memberships, error: memError } = await supabase
       .from('organization_members')
       .select('organization_id, role')
@@ -26,42 +79,172 @@ export async function addSupplier(formData: FormData) {
       .eq('is_active', true)
       .limit(1)
 
-    if (memError) {
-      console.error('Membership fetch error:', memError)
+    if (memError || !memberships || memberships.length === 0) {
       return { error: 'Failed to verify organization membership' }
     }
     
-    if (!memberships || memberships.length === 0) {
-      return { error: 'No active organization found for this user' }
-    }
-
     const { organization_id, role } = memberships[0]
-
     if (role !== 'OWNER' && role !== 'MANAGER') {
-      return { error: 'Unauthorized: Only Managers and Owners can add suppliers.' }
+      return { error: 'Unauthorized: Only Managers and Owners can edit suppliers.' }
     }
 
-    // 2. Insert the supplier using the securely determined organization_id
-    const { error: insertError } = await supabase
+    console.log('Executing editSupplier for id:', id, 'organization_id:', organization_id);
+    const { data: updatedRows, error: updateError } = await supabase
       .from('suppliers')
-      .insert({
-        organization_id,
+      .update({
         name: name.trim(),
-        is_active: true
+        is_active: isActive,
+        attributes: parsedAttributes
       })
+      .eq('id', id)
+      .eq('organization_id', organization_id)
+      .select()
 
-    if (insertError) {
-      console.error('Supplier insert error:', insertError)
-      if (insertError.code === '23505') {
+    console.log('Update result:', { updatedRows, updateError });
+
+    if (updateError) {
+      console.error('Supplier update error:', updateError)
+      if (updateError.code === '23505') {
           return { error: 'A supplier with this name already exists in your organization.' }
       }
-      return { error: insertError.message }
+      return { error: updateError.message }
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      console.error('Supplier update failed: No rows matched id and organization_id');
+      return { error: 'Update failed: Supplier not found or you lack permission to update it.' }
     }
 
     revalidatePath('/dashboard/suppliers')
     return { success: true }
   } catch (err: unknown) {
-    console.error('Unexpected error in addSupplier:', err)
+    console.error('Unexpected error in editSupplier:', err)
+    return { error: 'An unexpected error occurred' }
+  }
+}
+
+export async function getSupplierLedger(supplierId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return { error: 'Authentication required' }
+
+  try {
+    const { data: ledger, error } = await supabase
+      .from('supplier_ledger')
+      .select(`
+        id,
+        transaction_type,
+        amount,
+        balance_after,
+        reference_id,
+        notes,
+        created_at
+      `)
+      .eq('supplier_id', supplierId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Ledger fetch error:', error)
+      return { error: 'Failed to fetch ledger' }
+    }
+
+    return { success: true, ledger }
+  } catch (err: unknown) {
+    console.error('Unexpected error in getSupplierLedger:', err)
+    return { error: 'An unexpected error occurred' }
+  }
+}
+
+export async function getLedgerPurchaseDetails(referenceId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return { error: 'Authentication required' }
+
+  try {
+    // 1. Try to find an Invoice Purchase (purchase_orders)
+    const { data: po, error: poError } = await supabase
+      .from('purchase_orders')
+      .select(`
+        *,
+        suppliers ( name ),
+        po_items!po_items_po_id_fkey (
+          id,
+          quantity_ordered,
+          quantity_received,
+          purchase_cost,
+          package_quantity,
+          package_unit,
+          units_per_package,
+          gross_purchase_cost,
+          discount_percentage,
+          discount_amount,
+          batch_number,
+          mfg_date,
+          expiry_date,
+          product_variants (
+            sku,
+            unit_of_measure,
+            products ( name )
+          )
+        )
+      `)
+      .eq('id', referenceId)
+      .maybeSingle()
+
+    if (po) {
+      return { 
+        success: true, 
+        type: 'INVOICE', 
+        document: po 
+      }
+    }
+
+    // 2. Try to find a Goods Receipt (purchase_receipts)
+    const { data: receipt, error: receiptError } = await supabase
+      .from('purchase_receipts')
+      .select(`
+        *,
+        purchase_orders (
+          suppliers ( name )
+        ),
+        purchase_receipt_items (
+          id,
+          quantity_received,
+          batch_number,
+          mfg_date,
+          expiry_date,
+          po_items!purchase_receipt_items_po_item_id_po_item_po_id_fkey (
+            purchase_cost,
+            package_quantity,
+            package_unit,
+            units_per_package,
+            gross_purchase_cost,
+            discount_percentage,
+            discount_amount,
+            product_variants (
+              sku,
+              unit_of_measure,
+              products ( name )
+            )
+          )
+        )
+      `)
+      .eq('id', referenceId)
+      .maybeSingle()
+
+    if (receipt) {
+      return {
+        success: true,
+        type: 'RECEIPT',
+        document: receipt
+      }
+    }
+
+    return { error: 'Document not found for this ledger entry.' }
+  } catch (err: unknown) {
+    console.error('Unexpected error in getLedgerPurchaseDetails:', err)
     return { error: 'An unexpected error occurred' }
   }
 }
