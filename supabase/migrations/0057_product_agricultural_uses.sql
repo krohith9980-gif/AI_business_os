@@ -107,7 +107,7 @@ BEGIN
     )
     SELECT 
         v_best_observation.id AS observation_id,
-        v_best_observation.geographic_level,
+        v_best_observation.geographic_level::TEXT,
         v_best_observation.region AS resolved_region,
         v_best_observation.crop_stage,
         v_best_observation.progress_status,
@@ -115,7 +115,7 @@ BEGIN
         cte.mapping_reasoning,
         oi.urgency,
         v_best_observation.confidence_score,
-        v_best_observation.freshness_status,
+        v_best_observation.freshness_status::TEXT,
         v_best_observation.source_name,
         COALESCE(cte.products, '[]'::jsonb) AS matched_products
     FROM observation_inputs oi
