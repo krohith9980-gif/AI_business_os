@@ -254,7 +254,11 @@ export async function editProduct(formData: FormData) {
     }
 
     const name = formData.get('name')?.toString()
-    const sku = formData.get('sku')?.toString()
+    let sku: string | null | undefined = formData.get('sku')?.toString()
+    
+    if (!sku || sku.trim() === '') {
+      sku = null
+    }
     const purchaseCost = parseFloat(formData.get('purchase_cost')?.toString() || '0')
     const sellingPrice = parseFloat(formData.get('selling_price')?.toString() || '0')
     const trackingMode = formData.get('tracking_mode')?.toString() || 'NONE'
@@ -283,7 +287,8 @@ export async function editProduct(formData: FormData) {
     }
 
     if (!name || name.trim() === '') return { error: 'Name is required' }
-    if (!sku || sku.trim() === '') return { error: 'SKU is required' }
+    
+    if (sku && sku.length > 100) return { error: 'SKU is too long (max 100 chars)' }
 
     if (isNaN(purchaseCost) || purchaseCost < 0) return { error: 'Invalid purchase cost' }
     if (isNaN(sellingPrice) || sellingPrice < 0) return { error: 'Invalid selling price' }
