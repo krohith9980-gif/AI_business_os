@@ -43,7 +43,52 @@ type DraftItem = {
   mfg_date?: string
   expiry_date?: string
   raw_ai_data: any
+  agricultural_use?: string[]
 }
+
+const AGRI_USE_OPTIONS = [
+  { group: 'Pest Control (తెగుళ్ళు/పురుగులు)', options: [
+    'సాధారణ పురుగుల నియంత్రణ (General Pest)',
+    'రసం పీల్చే పురుగులు (Sucking Pests)',
+    'కాయతొలుచు పురుగులు (Pod Borer)',
+    'కాండం తొలుచు పురుగులు (Stem Borer)',
+    'ఆకులు తినే పురుగులు (Leaf Eating Pests)',
+    'తెల్లదోమ (Whitefly)',
+    'తామర పురుగు (Thrips)',
+    'పేను (Aphids)',
+    'ఆకు ముడత పురుగు (Leaf Folder)',
+    'బోల్వార్మ్ / కాయతొలుచు పురుగులు (Bollworm)',
+    'మైట్ / ఎర్ర పురుగు (Mites)',
+    'నిమటోడ్లు (Nematodes)'
+  ]},
+  { group: 'Disease Control (వ్యాధులు)', options: [
+    'శిలీంధ్ర వ్యాధులు (Fungal)',
+    'బాక్టీరియా వ్యాధులు (Bacterial)',
+    'ఆకు మచ్చలు (Leaf Spot)',
+    'బూజు (Mildew)',
+    'కుళ్ళు వ్యాధులు (Rot)',
+    'వాడిపోవు వ్యాధులు (Wilt)'
+  ]},
+  { group: 'Weed Control (కలుపు)', options: [
+    'సాధారణ కలుపు నియంత్రణ (General Weed)',
+    'గడ్డి జాతి కలుపు (Grassy Weeds)',
+    'వెడల్పు ఆకుల కలుపు (Broadleaf Weeds)'
+  ]},
+  { group: 'Crop Association (పంటలు)', options: [
+    'పత్తి (Cotton)',
+    'వరి (Paddy)',
+    'మిరప (Chilli)',
+    'మొక్కజొన్న (Maize)',
+    'కంది (Pigeon Pea)',
+    'వేరుశెనగ (Groundnut)',
+    'కూరగాయలు (Vegetables)'
+  ]},
+  { group: 'Other', options: [
+    'Nutrient / ఎరువులు',
+    'Growth Regulator / పెరుగుదల',
+    'Biological / జీవ సంబంధ'
+  ]}
+];
 
 export default function AIInvoiceModal({
   isOpen,
@@ -285,6 +330,21 @@ export default function AIInvoiceModal({
     }
   }
 
+  const toggleItemAgriUse = (id: string, tag: string) => {
+    setDraftItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const currentUses = item.agricultural_use || [];
+        return {
+          ...item,
+          agricultural_use: currentUses.includes(tag) 
+            ? currentUses.filter(t => t !== tag) 
+            : [...currentUses, tag]
+        };
+      }
+      return item;
+    }));
+  }
+
   // Financial Calculations
   const selectedCount = draftItems.filter(i => i.selected).length
   const grossSubtotal = useMemo(() => {
@@ -365,7 +425,8 @@ export default function AIInvoiceModal({
           batch_number: item.batch_number,
           mfg_date: item.mfg_date,
           expiry_date: item.expiry_date,
-          attributes: item.raw_ai_data
+          attributes: item.raw_ai_data,
+          agricultural_use: item.is_new ? item.agricultural_use : undefined
         }))
 
         const result = await createInvoicePurchaseOrder(
@@ -551,6 +612,44 @@ export default function AIInvoiceModal({
                                     <input type="text" value={item.raw_ai_data?.chemicalName || ''} readOnly className="block w-full rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 bg-gray-50" placeholder="Chemical" title="Chemical Name" />
                                     <input type="text" value={item.raw_ai_data?.concentration || ''} readOnly className="block w-full rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 bg-gray-50" placeholder="Conc." title="Concentration" />
                                     <input type="text" value={item.raw_ai_data?.formulation || ''} readOnly className="block w-full rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 bg-gray-50" placeholder="Form." title="Formulation" />
+                                  </div>
+                                  
+                                  {/* Agricultural Use Classification */}
+                                  <div className="mt-4 pb-1 border-b border-gray-200">
+                                    <h4 className="text-[11px] font-bold text-gray-900 uppercase tracking-wide flex items-center justify-between">
+                                      <span>వ్యవసాయ ఉపయోగం (Agricultural Use)</span>
+                                      <span className="text-[9px] font-normal text-gray-500 normal-case bg-green-50 text-green-700 px-1 py-0.5 rounded border border-green-200">Optional</span>
+                                    </h4>
+                                  </div>
+                                  
+                                  <div className="bg-gray-50 p-2 rounded-md border border-gray-200">
+                                    <div className="space-y-4">
+                                      {AGRI_USE_OPTIONS.map((group, idx) => (
+                                        <div key={idx}>
+                                          <h5 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{group.group}</h5>
+                                          <div className="flex flex-wrap gap-1.5">
+                                            {group.options.map(tag => {
+                                              const isSelected = (item.agricultural_use || []).includes(tag);
+                                              return (
+                                                <button
+                                                  type="button"
+                                                  key={tag}
+                                                  onClick={() => toggleItemAgriUse(item.id, tag)}
+                                                  disabled={!item.selected}
+                                                  className={`px-2 py-1 text-[10px] font-medium rounded-full border transition-colors ${
+                                                    isSelected 
+                                                      ? 'bg-green-100 border-green-300 text-green-800' 
+                                                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50'
+                                                  }`}
+                                                >
+                                                  {tag}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
                                 </div>
                               )}

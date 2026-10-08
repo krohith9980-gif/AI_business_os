@@ -23,6 +23,7 @@ export type InvoicePurchaseItem = {
   batch_number?: string
   mfg_date?: string
   expiry_date?: string
+  agricultural_use?: string[]
 }
 
 export async function createInvoicePurchaseOrder(
