@@ -97,6 +97,9 @@ export default function ProductsClient({
   const [sellingPrice, setSellingPrice] = useState('0.00')
   const [brand, setBrand] = useState('')
   const [manufacturer, setManufacturer] = useState('')
+  const [batchNumber, setBatchNumber] = useState('')
+  const [manufacturingDate, setManufacturingDate] = useState('')
+  const [expiryDate, setExpiryDate] = useState('')
   const [description, setDescription] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [trackingMode, setTrackingMode] = useState('NONE')
@@ -161,6 +164,9 @@ export default function ProductsClient({
     setSellingPrice('0.00')
     setBrand('')
     setManufacturer('')
+    setBatchNumber('')
+    setManufacturingDate('')
+    setExpiryDate('')
     setDescription('')
     setCategoryId('')
     setTrackingMode('NONE')
@@ -329,6 +335,9 @@ export default function ProductsClient({
     
     if (item.brand) setBrand(item.brand)
     if (item.manufacturer) setManufacturer(item.manufacturer)
+    if (item.batchNumber) setBatchNumber(item.batchNumber)
+    if (item.manufacturingDate) setManufacturingDate(item.manufacturingDate)
+    if (item.expiryDate) setExpiryDate(item.expiryDate)
     if (item.chemicalName) setChemicalName(item.chemicalName)
     if (item.concentration) setConcentration(item.concentration)
     if (item.formulation) setFormulation(item.formulation)
@@ -371,6 +380,11 @@ export default function ProductsClient({
     }
     formData.append('attributes', JSON.stringify(attributesData))
     formData.append('agricultural_use', JSON.stringify(agriculturalUse))
+    
+    // Pass batch data directly to form for opening stock tracking
+    if (batchNumber) formData.append('batch_number', batchNumber)
+    if (manufacturingDate) formData.append('manufacturing_date', manufacturingDate)
+    if (expiryDate) formData.append('expiry_date', expiryDate)
 
     startTransition(async () => {
       let result;
@@ -809,6 +823,72 @@ export default function ProductsClient({
                     <input type="number" step="0.01" min="0" name="selling_price" id="selling_price" required value={sellingPrice} onChange={e => setSellingPrice(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                   </div>
 
+                  {/* Metadata (Batch) */}
+                  <div className="sm:col-span-2 mt-4 pb-2 border-b border-gray-200">
+                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Batch & Dates (Metadata)</h4>
+                  </div>
+                  
+                  {editingVariantId ? (
+                    <div className="sm:col-span-2 bg-gray-50 p-4 rounded-md border border-gray-200">
+                      <p className="text-sm text-gray-600 mb-3">Active batches for this product are shown below. Batch details cannot be edited here to preserve inventory history. Use Inventory adjustments to receive or adjust batches.</p>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-300">
+                          <thead>
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch #</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mfg Date</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 bg-white">
+                            {inventory.filter(i => i.variant_id === editingVariantId && i.available_stock > 0).length > 0 ? (
+                              inventory.filter(i => i.variant_id === editingVariantId && i.available_stock > 0).map((b, i) => (
+                                <tr key={i}>
+                                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-900">{b.batch_number || '-'}</td>
+                                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-500">{b.mfg_date || '-'}</td>
+                                  <td className="whitespace-nowrap px-3 py-2 text-sm text-gray-500">{b.expiry_date || '-'}</td>
+                                  <td className="whitespace-nowrap px-3 py-2 text-sm font-medium text-gray-900">{b.available_stock}</td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={4} className="px-3 py-4 text-center text-sm text-gray-500 italic">No active batches in stock.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="sm:col-span-2 text-sm text-gray-500 italic mb-2">
+                        Enter batch details to associate them with the Initial Opening Stock (if provided).
+                      </div>
+                      <div>
+                        <label htmlFor="batch_number" className="block text-sm font-medium text-gray-700 flex justify-between">
+                          <span>Batch Number</span>
+                          {aiConfidenceInfo?.batchNumber === 'uncertain' && <span className="text-xs text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">Uncertain</span>}
+                        </label>
+                        <input type="text" name="batch_number" id="batch_number" value={batchNumber} onChange={e => setBatchNumber(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      </div>
+                      <div className="hidden sm:block"></div>
+                      <div>
+                        <label htmlFor="manufacturing_date" className="block text-sm font-medium text-gray-700 flex justify-between">
+                          <span>Mfg Date</span>
+                          {aiConfidenceInfo?.manufacturingDate === 'uncertain' && <span className="text-xs text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">Uncertain</span>}
+                        </label>
+                        <input type="date" name="manufacturing_date" id="manufacturing_date" value={manufacturingDate} onChange={e => setManufacturingDate(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      </div>
+                      <div>
+                        <label htmlFor="expiry_date" className="block text-sm font-medium text-gray-700 flex justify-between">
+                          <span>Expiry Date</span>
+                          {aiConfidenceInfo?.expiryDate === 'uncertain' && <span className="text-xs text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">Uncertain</span>}
+                        </label>
+                        <input type="date" name="expiry_date" id="expiry_date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      </div>
+                    </>
+                  )}
 
                   {/* Tracking Mode */}
                   <div className="sm:col-span-2 mt-4 pb-2 border-b border-gray-200">

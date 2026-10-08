@@ -132,6 +132,16 @@ export async function addProduct(formData: FormData) {
         }
     }
 
+    // Batch Metadata
+    const batchNumberStr = formData.get('batch_number')?.toString()
+    const batchNumber = batchNumberStr && batchNumberStr.trim() !== '' ? batchNumberStr.trim() : null
+    
+    const mfgDateStr = formData.get('manufacturing_date')?.toString()
+    const mfgDate = mfgDateStr && mfgDateStr.trim() !== '' ? mfgDateStr.trim() : null
+    
+    const expiryDateStr = formData.get('expiry_date')?.toString()
+    const expiryDate = expiryDateStr && expiryDateStr.trim() !== '' ? expiryDateStr.trim() : null
+
     if (!name || name.trim() === '') {
       return { error: 'Name is required' }
     }
@@ -192,7 +202,10 @@ export async function addProduct(formData: FormData) {
         p_unit_of_measure: unitOfMeasure,
         p_packaging_type: packagingType,
         p_units_per_pack: unitsPerPack,
-        p_item_size: itemSize
+        p_item_size: itemSize,
+        p_batch_number: batchNumber,
+        p_mfg_date: mfgDate,
+        p_expiry_date: expiryDate
     })
 
     if (rpcError) {
