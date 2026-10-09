@@ -83,8 +83,15 @@ const AGRI_USE_OPTIONS = [
     'వేరుశెనగ (Groundnut)',
     'కూరగాయలు (Vegetables)'
   ]},
+  { group: 'Fertilizer / Nutrient Inputs (ఎరువులు / పోషకాలు)', options: [
+    'యూరియా / నైట్రోజన్ (Urea / Nitrogen)',
+    'డిఎపి / భాస్వరం (DAP / Phosphorus)',
+    'పొటాష్ (Potash / MOP)',
+    'కాంప్లెక్స్ ఎరువులు (Complex Fertilizers)',
+    'మైక్రోన్యూట్రియెంట్స్ (Micronutrients)',
+    'సాధారణ పోషకాలు (General Nutrients)'
+  ]},
   { group: 'Other', options: [
-    'Nutrient / ఎరువులు',
     'Growth Regulator / పెరుగుదల',
     'Biological / జీవ సంబంధ'
   ]}
