@@ -1,6 +1,13 @@
+import { Metadata } from 'next';
+import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
+import { ArrowLeft, ShoppingCart, Sprout } from 'lucide-react';
 import AgriRecClient from './AgriRecClient';
+
+export const metadata: Metadata = {
+  title: 'Agricultural Intelligence | AI Business OS',
+};
 
 export default async function AgriRecPage() {
   const supabase = await createClient();
@@ -36,13 +43,45 @@ export default async function AgriRecPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 lg:p-8">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+      {/* Top Header & Sub-Navigation Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 pb-5">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Agri-Intelligence Stock Recommendations</h1>
+          <div className="flex items-center gap-2 text-xs font-medium text-gray-500 mb-1">
+            <Link 
+              href="/dashboard/intelligence" 
+              className="inline-flex items-center gap-1 text-gray-500 hover:text-indigo-600 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Intelligence Hub
+            </Link>
+            <span>/</span>
+            <span className="text-emerald-700 font-semibold">Agricultural Recommendations</span>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            Agricultural Intelligence Stock Recommendations
+          </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Data-driven purchasing recommendations based on real-world agricultural observations and your shop's recent sales.
+            Proactive recommendations combining real-world agricultural observations + product Agricultural Use + shop sales and inventory.
           </p>
+        </div>
+
+        {/* Sub-Navigation Tabs */}
+        <div className="flex items-center bg-gray-100 p-1 rounded-xl self-start sm:self-auto">
+          <Link
+            href="/dashboard/intelligence"
+            className="px-4 py-2 text-sm font-medium rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-200/60 transition-all flex items-center gap-1.5"
+          >
+            <ShoppingCart className="w-4 h-4 text-indigo-600" />
+            Purchasing Intelligence
+          </Link>
+          <Link
+            href="/dashboard/intelligence/agri-recommendations"
+            className="px-4 py-2 text-sm font-semibold rounded-lg bg-white text-gray-900 shadow-sm transition-all flex items-center gap-1.5"
+          >
+            <Sprout className="w-4 h-4 text-emerald-600" />
+            Agricultural Intelligence
+          </Link>
         </div>
       </div>
       
