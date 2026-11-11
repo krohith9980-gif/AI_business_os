@@ -30,3 +30,12 @@ pnpm-debug.log*
 Thumbs.db
 .vercel
 .env*
+
+# Forensic recovery archive
+scratch/unsaved_editor_recovery/
+
+# Scratch testing and inspection scripts
+scratch/test_owner_dashboard_2.js
+scratch/inspect_staging_real.js
+scratch/verify_staging_data.js
+
