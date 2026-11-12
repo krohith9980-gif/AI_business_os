@@ -1,19 +1,19 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { BusinessProfile, DateRangeFilter } from '../dashboard.types'
 import { Store, Calendar, ShieldCheck, ChevronDown, Filter } from 'lucide-react'
 
 interface BusinessHeaderProps {
   profile: BusinessProfile
   activeFilter: DateRangeFilter
-  onFilterChange: (filter: DateRangeFilter) => void
+  onFilterChange: (filter: DateRangeFilter, start?: string, end?: string) => void
   availableStores: Array<{ id: string; name: string }>
   selectedStoreId?: string
   onStoreChange: (storeId: string) => void
   customStart?: string
   customEnd?: string
-  onCustomDateChange?: (start: string, end: string) => void
+  periodDisplayLabel?: string
 }
 
 export default function BusinessHeader({
@@ -25,11 +25,16 @@ export default function BusinessHeader({
   onStoreChange,
   customStart,
   customEnd,
-  onCustomDateChange
+  periodDisplayLabel
 }: BusinessHeaderProps) {
   const [showCustomModal, setShowCustomModal] = useState(false)
   const [localStart, setLocalStart] = useState(customStart || '')
   const [localEnd, setLocalEnd] = useState(customEnd || '')
+
+  useEffect(() => {
+    if (customStart) setLocalStart(customStart)
+    if (customEnd) setLocalEnd(customEnd)
+  }, [customStart, customEnd])
 
   const filterOptions: Array<{ key: DateRangeFilter; label: string; teLabel: string }> = [
     { key: 'today', label: 'Today', teLabel: 'ఈరోజు' },
@@ -41,9 +46,8 @@ export default function BusinessHeader({
   ]
 
   const handleCustomApply = () => {
-    if (localStart && localEnd && onCustomDateChange) {
-      onCustomDateChange(localStart, localEnd)
-      onFilterChange('custom')
+    if (localStart && localEnd) {
+      onFilterChange('custom', localStart, localEnd)
       setShowCustomModal(false)
     }
   }
@@ -142,10 +146,10 @@ export default function BusinessHeader({
           })}
         </div>
 
-        {activeFilter === 'custom' && customStart && customEnd && (
-          <div className="text-xs text-gray-500 flex items-center gap-1 bg-gray-50 px-2 py-1 rounded border border-gray-200">
-            <Calendar className="w-3.5 h-3.5 text-gray-400" />
-            <span>{customStart} to {customEnd}</span>
+        {periodDisplayLabel && (
+          <div className="text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-2xs">
+            <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="font-semibold">{periodDisplayLabel}</span>
           </div>
         )}
       </div>

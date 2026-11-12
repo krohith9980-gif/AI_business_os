@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { SalesPerformance } from '../dashboard.types'
-import { TrendingUp, TrendingDown, Award, BarChart3 } from 'lucide-react'
+import { TrendingUp, TrendingDown, Award, BarChart3, Wallet, Split, ReceiptText, IndianRupee } from 'lucide-react'
 
 interface SalesPerformanceSectionProps {
   performance: SalesPerformance
@@ -101,6 +101,94 @@ export default function SalesPerformanceSection({
             </div>
             <div className="text-[10px] text-gray-500">గత స్థూల లాభం</div>
           </div>
+        </div>
+
+        {/* Cash vs Credit Sales Breakdown for Selected Reporting Period */}
+        <div className="bg-gradient-to-br from-emerald-50/60 via-teal-50/40 to-slate-50 border border-emerald-200/80 rounded-xl p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2 border-b border-emerald-100">
+            <div className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-emerald-700" />
+              <h4 className="font-bold text-sm text-gray-900">
+                Cash vs Credit Breakdown (నగదు vs బాకీ అమ్మకాలు)
+              </h4>
+              <span className="text-[11px] font-semibold text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-300">
+                {performance.periodDisplayLabel}
+              </span>
+            </div>
+            <span className="text-[11px] text-gray-500">
+              *Invoice checkout allocations
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* 1. Total Sales */}
+            <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-2xs">
+              <div className="text-[11px] font-semibold text-gray-500 flex items-center justify-between">
+                <span>Total Sales</span>
+                <IndianRupee className="w-3.5 h-3.5 text-gray-400" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-gray-900 mt-1">
+                ₹{performance.periodTotalSales.toLocaleString('en-IN')}
+              </div>
+              <div className="text-[10px] text-gray-600 font-medium mt-0.5">మొత్తం అమ్మకాలు</div>
+            </div>
+
+            {/* 2. Cash Sales */}
+            <div className="bg-white p-3 rounded-lg border border-emerald-200 shadow-2xs">
+              <div className="text-[11px] font-semibold text-emerald-700 flex items-center justify-between">
+                <span>Cash Sales</span>
+                <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-emerald-800 mt-1">
+                ₹{performance.periodCashSales.toLocaleString('en-IN')}
+              </div>
+              <div className="text-[10px] text-emerald-600 font-medium mt-0.5">నగదు అమ్మకాలు</div>
+            </div>
+
+            {/* 3. Credit Sales */}
+            <div className="bg-white p-3 rounded-lg border border-amber-200 shadow-2xs">
+              <div className="text-[11px] font-semibold text-amber-700 flex items-center justify-between">
+                <span>Credit Sales</span>
+                <Split className="w-3.5 h-3.5 text-amber-600" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-amber-800 mt-1">
+                ₹{performance.periodCreditSales.toLocaleString('en-IN')}
+              </div>
+              <div className="text-[10px] text-amber-600 font-medium mt-0.5">బాకీ అమ్మకాలు</div>
+            </div>
+
+            {/* 4. Number of Bills */}
+            <div className="bg-white p-3 rounded-lg border border-teal-200 shadow-2xs">
+              <div className="text-[11px] font-semibold text-teal-700 flex items-center justify-between">
+                <span>Bills Count</span>
+                <ReceiptText className="w-3.5 h-3.5 text-teal-600" />
+              </div>
+              <div className="text-base sm:text-lg font-black text-teal-900 mt-1">
+                {performance.periodBillCount}
+              </div>
+              <div className="text-[10px] text-teal-600 font-medium mt-0.5">బిల్లులు</div>
+            </div>
+          </div>
+
+          {/* Visual Ratio Bar */}
+          {performance.periodTotalSales > 0 && (
+            <div className="space-y-1 pt-1">
+              <div className="flex justify-between text-[11px] font-semibold">
+                <span className="text-emerald-800">
+                  నగదు (Cash): {Math.round((performance.periodCashSales / performance.periodTotalSales) * 100)}% (₹{performance.periodCashSales.toLocaleString('en-IN')})
+                </span>
+                <span className="text-amber-800">
+                  బాకీ (Credit): {Math.round((performance.periodCreditSales / performance.periodTotalSales) * 100)}% (₹{performance.periodCreditSales.toLocaleString('en-IN')})
+                </span>
+              </div>
+              <div className="w-full bg-amber-200 rounded-full h-2 overflow-hidden flex">
+                <div
+                  style={{ width: `${Math.round((performance.periodCashSales / performance.periodTotalSales) * 100)}%` }}
+                  className="bg-emerald-600 h-full transition-all duration-300"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 7-Day Trend Bars */}

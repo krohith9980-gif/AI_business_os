@@ -20,6 +20,7 @@ export interface TodaySnapshot {
   todayCreditSales: number;
   todayCollections: number;
   todaySupplierDisbursements: number | null;
+  snapshotDateIST: string;
 }
 
 export interface FinancialMetrics {
@@ -59,8 +60,13 @@ export interface SalesPerformance {
   previousGrossProfit: number | null;
   profitPercentageChange: number | null;
   comparisonLabel: string;
+  periodDisplayLabel: string;
   dailyTrend: DailyTrendPoint[];
   bestSellers: BestSellingProduct[];
+  periodCashSales: number;
+  periodCreditSales: number;
+  periodTotalSales: number;
+  periodBillCount: number;
 }
 
 export interface LowStockItem {

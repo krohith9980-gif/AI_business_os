@@ -18,11 +18,13 @@ import {
 interface FinancialOverviewCardsProps {
   metrics: FinancialMetrics
   comparisonLabel?: string
+  periodDisplayLabel?: string
 }
 
 export default function FinancialOverviewCards({
   metrics,
-  comparisonLabel
+  comparisonLabel,
+  periodDisplayLabel
 }: FinancialOverviewCardsProps) {
   const formatCurrency = (val: number | null) => {
     if (val === null || val === undefined) return null
@@ -31,13 +33,22 @@ export default function FinancialOverviewCards({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
-          <span>Financial Health (ఆర్థిక నివేదిక)</span>
-          <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-            {comparisonLabel || 'Selected Period'}
-          </span>
-        </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+            <span>Financial Health (ఆర్థిక నివేదిక)</span>
+          </h2>
+          {periodDisplayLabel && (
+            <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded">
+              {periodDisplayLabel}
+            </span>
+          )}
+          {comparisonLabel && (
+            <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+              {comparisonLabel}
+            </span>
+          )}
+        </div>
         <span className="text-xs text-gray-400">
           *GST collected is statutory and strictly excluded from business profit
         </span>

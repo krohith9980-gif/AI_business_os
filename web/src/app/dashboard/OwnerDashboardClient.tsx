@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useTransition } from 'react'
+import React, { useState, useEffect, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { DashboardData, DateRangeFilter } from './dashboard.types'
 import BusinessHeader from './components/BusinessHeader'
@@ -32,25 +32,32 @@ export default function OwnerDashboardClient({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
+  const [showLoading, setShowLoading] = useState(false)
 
-  const handleFilterChange = (filter: DateRangeFilter) => {
+  // Safety timer: ensures loading overlay never gets stuck permanently
+  useEffect(() => {
+    if (isPending) {
+      setShowLoading(true)
+      const timer = setTimeout(() => {
+        setShowLoading(false)
+      }, 4000)
+      return () => clearTimeout(timer)
+    } else {
+      setShowLoading(false)
+    }
+  }, [isPending])
+
+  const handleFilterChange = (filter: DateRangeFilter, start?: string, end?: string) => {
     startTransition(() => {
       const params = new URLSearchParams(searchParams.toString())
       params.set('filter', filter)
-      if (filter !== 'custom') {
+      if (filter === 'custom' && start && end) {
+        params.set('start', start)
+        params.set('end', end)
+      } else {
         params.delete('start')
         params.delete('end')
       }
-      router.push(`/dashboard?${params.toString()}`)
-    })
-  }
-
-  const handleCustomDateChange = (start: string, end: string) => {
-    startTransition(() => {
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('filter', 'custom')
-      params.set('start', start)
-      params.set('end', end)
       router.push(`/dashboard?${params.toString()}`)
     })
   }
@@ -72,7 +79,7 @@ export default function OwnerDashboardClient({
   return (
     <div className="relative space-y-6 max-w-7xl mx-auto pb-12">
       {/* Pending Loading Overlay */}
-      {isPending && (
+      {showLoading && (
         <div className="fixed top-4 right-4 z-50 bg-gray-900/80 text-white px-3.5 py-2 rounded-full text-xs font-semibold flex items-center gap-2 shadow-lg backdrop-blur-xs">
           <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
           <span>Refreshing financial metrics...</span>
@@ -89,7 +96,7 @@ export default function OwnerDashboardClient({
         onStoreChange={handleStoreChange}
         customStart={currentStart}
         customEnd={currentEnd}
-        onCustomDateChange={handleCustomDateChange}
+        periodDisplayLabel={initialData.performance.periodDisplayLabel}
       />
 
       {/* 2. Today's Business Summary */}
@@ -103,6 +110,7 @@ export default function OwnerDashboardClient({
         <FinancialOverviewCards
           metrics={initialData.metrics}
           comparisonLabel={initialData.performance.comparisonLabel}
+          periodDisplayLabel={initialData.performance.periodDisplayLabel}
         />
       )}
 

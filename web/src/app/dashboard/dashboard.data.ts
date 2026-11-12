@@ -43,6 +43,41 @@ export function computeInvoiceDirectUnpaid(
   return Math.max(0, grandTotal - directPaid - directReturns);
 }
 
+export function computePeriodSalesBreakdown(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sales: Array<{ grand_total?: number | string | null; payments?: Array<any> | null }>
+): {
+  totalSales: number;
+  cashSales: number;
+  creditSales: number;
+  billCount: number;
+} {
+  let totalSales = 0;
+  let cashSales = 0;
+  let creditSales = 0;
+  const billCount = sales ? sales.length : 0;
+
+  for (const s of sales || []) {
+    const saleTotal = Number(s.grand_total || 0);
+    totalSales += saleTotal;
+
+    const settledPaid = computeSettledPaymentsTotal(s.payments);
+    if (settledPaid >= saleTotal) {
+      cashSales += saleTotal;
+    } else {
+      cashSales += settledPaid;
+      creditSales += (saleTotal - settledPaid);
+    }
+  }
+
+  return {
+    totalSales,
+    cashSales,
+    creditSales,
+    billCount
+  };
+}
+
 export function applyFifoGeneralCredits<T extends { remainingUnpaid: number; createdAt: string }>(
   invoices: T[],
   generalCreditPool: number
@@ -122,82 +157,126 @@ export function getFinancialPeriodString(date: Date = new Date()): string {
   return `FY ${fyStart}-${fyEnd.toString().padStart(2, '0')} (${quarter})`;
 }
 
+// Indian Standard Time is UTC+05:30
+export const IST_OFFSET_MINUTES = 330;
+
+export function getNowInIST(referenceDate: Date = new Date()): { year: number; month: number; day: number; dayOfWeek: number } {
+  const istTime = new Date(referenceDate.getTime() + (IST_OFFSET_MINUTES + referenceDate.getTimezoneOffset()) * 60 * 1000);
+  return {
+    year: istTime.getFullYear(),
+    month: istTime.getMonth(), // 0 = Jan, 10 = Nov
+    day: istTime.getDate(),
+    dayOfWeek: istTime.getDay() // 0 = Sun, 1 = Mon
+  };
+}
+
+export function createISTDayStart(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month, day, 0, 0, 0, 0) - IST_OFFSET_MINUTES * 60 * 1000);
+}
+
+export function createISTDayEnd(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month, day, 23, 59, 59, 999) - IST_OFFSET_MINUTES * 60 * 1000);
+}
+
+export function getISTDateKey(date: Date): string {
+  const ist = new Date(date.getTime() + IST_OFFSET_MINUTES * 60 * 1000);
+  const y = ist.getUTCFullYear();
+  const m = (ist.getUTCMonth() + 1).toString().padStart(2, '0');
+  const d = ist.getUTCDate().toString().padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function getDateRangeBounds(filter: DateRangeFilter, customStart?: string, customEnd?: string) {
-  const now = new Date();
-  let start = new Date();
-  let end = new Date();
-  let prevStart = new Date();
-  let prevEnd = new Date();
-  let comparisonLabel = 'vs. previous period';
+  const { year, month, day, dayOfWeek } = getNowInIST();
+  let start: Date;
+  let end: Date;
+  let prevStart: Date;
+  let prevEnd: Date;
+  let comparisonLabel: string;
+  let periodDisplayLabel: string;
 
   switch (filter) {
     case 'today':
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      prevStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
-      prevEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+      start = createISTDayStart(year, month, day);
+      end = createISTDayEnd(year, month, day);
+      prevStart = createISTDayStart(year, month, day - 1);
+      prevEnd = createISTDayEnd(year, month, day - 1);
       comparisonLabel = 'vs. yesterday';
+      periodDisplayLabel = `Today (${day.toString().padStart(2, '0')}/${(month + 1).toString().padStart(2, '0')}/${year})`;
       break;
 
     case 'yesterday':
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
-      prevStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2, 0, 0, 0);
-      prevEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2, 23, 59, 59, 999);
+      start = createISTDayStart(year, month, day - 1);
+      end = createISTDayEnd(year, month, day - 1);
+      prevStart = createISTDayStart(year, month, day - 2);
+      prevEnd = createISTDayEnd(year, month, day - 2);
       comparisonLabel = 'vs. day before yesterday';
+      periodDisplayLabel = `Yesterday (${(day - 1).toString().padStart(2, '0')}/${(month + 1).toString().padStart(2, '0')}/${year})`;
       break;
 
     case 'this_week': {
-      const dayOfWeek = now.getDay();
       const diffToMonday = (dayOfWeek + 6) % 7;
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      
-      prevStart = new Date(start);
-      prevStart.setDate(prevStart.getDate() - 7);
-      prevEnd = new Date(end);
-      prevEnd.setDate(prevEnd.getDate() - 7);
+      start = createISTDayStart(year, month, day - diffToMonday);
+      end = createISTDayEnd(year, month, day);
+      prevStart = createISTDayStart(year, month, day - diffToMonday - 7);
+      prevEnd = createISTDayEnd(year, month, day - 7);
       comparisonLabel = 'vs. same days last week';
+      const mondayDate = new Date(start.getTime() + IST_OFFSET_MINUTES * 60 * 1000);
+      periodDisplayLabel = `This Week (${mondayDate.getUTCDate().toString().padStart(2, '0')}/${(mondayDate.getUTCMonth() + 1).toString().padStart(2, '0')} - ${day.toString().padStart(2, '0')}/${(month + 1).toString().padStart(2, '0')}/${year})`;
       break;
     }
 
-    case 'last_month':
-      start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-      prevStart = new Date(now.getFullYear(), now.getMonth() - 2, 1, 0, 0, 0);
-      prevEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59, 999);
+    case 'last_month': {
+      const lastDayOfPrevMonth = new Date(year, month, 0).getDate();
+      start = createISTDayStart(year, month - 1, 1);
+      end = createISTDayEnd(year, month - 1, lastDayOfPrevMonth);
+      const lastDayOfPriorMonth = new Date(year, month - 1, 0).getDate();
+      prevStart = createISTDayStart(year, month - 2, 1);
+      prevEnd = createISTDayEnd(year, month - 2, lastDayOfPriorMonth);
       comparisonLabel = 'vs. full month prior';
+      const prevMonthNum = month === 0 ? 12 : month;
+      const prevYearNum = month === 0 ? year - 1 : year;
+      periodDisplayLabel = `Last Month (01/${prevMonthNum.toString().padStart(2, '0')} - ${lastDayOfPrevMonth.toString().padStart(2, '0')}/${prevMonthNum.toString().padStart(2, '0')}/${prevYearNum})`;
       break;
+    }
 
     case 'custom':
       if (customStart && customEnd) {
-        start = new Date(customStart);
-        end = new Date(customEnd);
-        const duration = end.getTime() - start.getTime();
-        prevStart = new Date(start.getTime() - duration);
-        prevEnd = new Date(start.getTime());
+        const [y1, m1, d1] = customStart.split('-').map(Number);
+        const [y2, m2, d2] = customEnd.split('-').map(Number);
+        start = createISTDayStart(y1, m1 - 1, d1);
+        end = createISTDayEnd(y2, m2 - 1, d2);
+        const durationMs = end.getTime() - start.getTime();
+        prevStart = new Date(start.getTime() - durationMs - 1);
+        prevEnd = new Date(start.getTime() - 1);
+        const days = Math.max(1, Math.round(durationMs / 86400000));
+        comparisonLabel = `vs. prior ${days} days`;
+        periodDisplayLabel = `Custom (${d1.toString().padStart(2, '0')}/${m1.toString().padStart(2, '0')}/${y1} - ${d2.toString().padStart(2, '0')}/${m2.toString().padStart(2, '0')}/${y2})`;
+      } else {
+        start = createISTDayStart(year, month, 1);
+        end = createISTDayEnd(year, month, day);
+        prevStart = createISTDayStart(year, month - 1, 1);
+        prevEnd = createISTDayEnd(year, month - 1, day);
+        comparisonLabel = 'vs. prior timeframe';
+        periodDisplayLabel = 'Custom (Dates not selected)';
       }
-      comparisonLabel = 'vs. prior timeframe';
       break;
 
     case 'this_month':
     default: {
-      // Month-To-Date (MTD)
-      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      
-      // Fair MTD comparison: 1st of previous month up to the same elapsed day
-      prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0);
-      const daysElapsed = now.getDate();
-      const lastDayOfPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
-      const cappedElapsedDay = Math.min(daysElapsed, lastDayOfPrevMonth);
-      prevEnd = new Date(now.getFullYear(), now.getMonth() - 1, cappedElapsedDay, 23, 59, 59, 999);
+      start = createISTDayStart(year, month, 1);
+      end = createISTDayEnd(year, month, day);
+      const lastDayOfPrevMonth = new Date(year, month, 0).getDate();
+      const cappedElapsedDay = Math.min(day, lastDayOfPrevMonth);
+      prevStart = createISTDayStart(year, month - 1, 1);
+      prevEnd = createISTDayEnd(year, month - 1, cappedElapsedDay);
       comparisonLabel = `vs. same elapsed period last month (Day 1 - ${cappedElapsedDay})`;
+      periodDisplayLabel = `This Month (01/${(month + 1).toString().padStart(2, '0')} - ${day.toString().padStart(2, '0')}/${(month + 1).toString().padStart(2, '0')}/${year})`;
       break;
     }
   }
 
-  return { start, end, prevStart, prevEnd, comparisonLabel };
+  return { start, end, prevStart, prevEnd, comparisonLabel, periodDisplayLabel };
 }
 
 // =========================================================================
@@ -275,14 +354,42 @@ export async function fetchDashboardData(
     };
 
     // 3. Date Bounds
-    const { start, end, prevStart, prevEnd, comparisonLabel } = getDateRangeBounds(filter, customStart, customEnd);
+    const { start, end, prevStart, prevEnd, comparisonLabel, periodDisplayLabel } = getDateRangeBounds(filter, customStart, customEnd);
 
-    // Today's Date bounds (midnight to midnight)
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    // Today's Date bounds in IST (midnight to midnight)
+    const { year: nowYear, month: nowMonth, day: nowDay } = getNowInIST();
+    const todayStart = createISTDayStart(nowYear, nowMonth, nowDay);
+    const todayEnd = createISTDayEnd(nowYear, nowMonth, nowDay);
+    const snapshotDateIST = `${nowDay.toString().padStart(2, '0')}/${(nowMonth + 1).toString().padStart(2, '0')}/${nowYear}`;
 
-    // 4. Query Current Period Completed Sales & Sale Items
+    // 4. Query Today's Completed Sales independently for Today's Business Pulse
+    let todaySalesQuery = supabase
+      .from('sales')
+      .select(`
+        id, grand_total, created_at,
+        payments (
+          id, amount, method, status
+        )
+      `)
+      .eq('organization_id', orgId)
+      .eq('status', 'COMPLETED')
+      .gte('created_at', todayStart.toISOString())
+      .lte('created_at', todayEnd.toISOString());
+
+    if (selectedStoreId) {
+      todaySalesQuery = todaySalesQuery.eq('store_id', selectedStoreId);
+    }
+
+    const { data: todaySalesData, error: todaySalesErr } = await todaySalesQuery;
+    if (todaySalesErr) console.error('Error fetching today sales:', todaySalesErr);
+
+    const todayBreakdown = computePeriodSalesBreakdown(todaySalesData || []);
+    const todaySales = todayBreakdown.totalSales;
+    const todayBillCount = todayBreakdown.billCount;
+    const todayCashSales = todayBreakdown.cashSales;
+    const todayCreditSales = todayBreakdown.creditSales;
+
+    // 5. Query Current Period Completed Sales & Sale Items
     let currentSalesQuery = supabase
       .from('sales')
       .select(`
@@ -328,7 +435,7 @@ export async function fetchDashboardData(
     const { data: returnsData } = await returnsQuery;
     const periodRefunds = (returnsData || []).reduce((sum, r) => sum + Number(r.total_refund_amount || 0), 0);
 
-    // 5. Query Prior Period Sales for Fair Comparison
+    // 6. Query Prior Period Sales for Fair Comparison
     let prevSalesQuery = supabase
       .from('sales')
       .select(`
@@ -349,7 +456,7 @@ export async function fetchDashboardData(
     const { data: prevSalesData } = await prevSalesQuery;
     const prevSales = prevSalesData || [];
 
-    // Calculate Tax-Exclusive Product Revenue & Historical COGS
+    // Calculate Tax-Exclusive Product Revenue & Historical COGS for Selected Period
     let grossProductRevenue = 0;
     let totalTaxCollected = 0;
     let grossCogs = 0;
@@ -357,44 +464,19 @@ export async function fetchDashboardData(
     const productSalesMap = new Map<string, { name: string; sku: string; quantity: number; revenue: number }>();
     const dailyMap = new Map<string, { sales: number; count: number }>();
 
-    // Today's Operational Snapshot
-    let todaySales = 0;
-    let todayBillCount = 0;
-    let todayCashSales = 0;
-    let todayCreditSales = 0;
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     currentSales.forEach((s: any) => {
       const saleSubtotal = Number(s.subtotal || 0);
       const saleDiscount = Number(s.discount_total || 0);
       const saleTax = Number(s.tax_total || 0);
-      const saleGrandTotal = Number(s.grand_total || 0);
 
       // Tax-exclusive product revenue: subtotal minus discount_total
       const lineRevenueTotal = saleSubtotal - saleDiscount;
       grossProductRevenue += lineRevenueTotal;
       totalTaxCollected += saleTax;
 
-      const saleTime = new Date(s.created_at).getTime();
-      const isToday = saleTime >= todayStart.getTime() && saleTime <= todayEnd.getTime();
-
-      if (isToday) {
-        todaySales += saleGrandTotal;
-        todayBillCount += 1;
-
-        // Payment status validation: only settled funds count towards checkout payment
-        const paymentsTotal = computeSettledPaymentsTotal(s.payments);
-
-        if (paymentsTotal >= saleGrandTotal) {
-          todayCashSales += saleGrandTotal;
-        } else {
-          todayCashSales += paymentsTotal;
-          todayCreditSales += (saleGrandTotal - paymentsTotal);
-        }
-      }
-
-      // Grouping for Daily Trend
-      const dKey = new Date(s.created_at).toISOString().split('T')[0];
+      // Grouping for Daily Trend using IST calendar day
+      const dKey = getISTDateKey(new Date(s.created_at));
       const existing = dailyMap.get(dKey) || { sales: 0, count: 0 };
       dailyMap.set(dKey, { sales: existing.sales + lineRevenueTotal, count: existing.count + 1 });
 
@@ -473,16 +555,24 @@ export async function fetchDashboardData(
       ? ((grossProfit - prevGrossProfit) / prevGrossProfit) * 100
       : (grossProfit > 0 ? 100 : null);
 
-    // Build Daily Trend (last 7 days)
+    // Calculate Cash vs Credit Sales breakdown for the selected reporting period
+    const periodBreakdown = computePeriodSalesBreakdown(currentSales);
+
+    // Build Daily Trend (7 days ending at the period's end date in IST)
     const dailyTrend: DailyTrendPoint[] = [];
+    const endIST = new Date(end.getTime() + IST_OFFSET_MINUTES * 60 * 1000);
     for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dKey = d.toISOString().split('T')[0];
+      const d = new Date(endIST.getTime() - i * 86400000);
+      const y = d.getUTCFullYear();
+      const m = (d.getUTCMonth() + 1).toString().padStart(2, '0');
+      const dayNum = d.getUTCDate().toString().padStart(2, '0');
+      const dKey = `${y}-${m}-${dayNum}`;
       const entry = dailyMap.get(dKey) || { sales: 0, count: 0 };
+      const dayDate = new Date(Date.UTC(y, d.getUTCMonth(), d.getUTCDate()));
+      const label = dayDate.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
       dailyTrend.push({
         date: dKey,
-        label: d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' }),
+        label,
         sales: entry.sales,
         count: entry.count
       });
@@ -493,7 +583,7 @@ export async function fetchDashboardData(
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
 
-    // 6. Query Customer Collections Today and Supplier Disbursements Today
+    // 7. Query Customer Collections Today and Supplier Disbursements Today
     const { data: todayCustPayments } = await supabase
       .from('customer_ledger')
       .select('amount')
@@ -520,7 +610,8 @@ export async function fetchDashboardData(
       todayCashSales,
       todayCreditSales,
       todayCollections,
-      todaySupplierDisbursements: isOwner ? rawTodaySupplierDisbursements : null
+      todaySupplierDisbursements: isOwner ? rawTodaySupplierDisbursements : null,
+      snapshotDateIST
     };
 
     // 7. Two-Tier FIFO Customer Overdue Allocation
@@ -556,7 +647,7 @@ export async function fetchDashboardData(
       .eq('organization_id', orgId)
       .in('transaction_type', ['PAYMENT', 'RETURN', 'ADJUSTMENT']);
 
-    const nowTime = now.getTime();
+    const nowTime = Date.now();
     const overdueList: OverdueCustomer[] = [];
     const villageSet = new Set<string>();
 
@@ -1051,8 +1142,13 @@ export async function fetchDashboardData(
       previousGrossProfit: isOwner ? prevGrossProfit : null,
       profitPercentageChange: isOwner ? profitPercentageChange : null,
       comparisonLabel,
+      periodDisplayLabel,
       dailyTrend,
-      bestSellers
+      bestSellers,
+      periodCashSales: periodBreakdown.cashSales,
+      periodCreditSales: periodBreakdown.creditSales,
+      periodTotalSales: periodBreakdown.totalSales,
+      periodBillCount: periodBreakdown.billCount
     };
 
     return {

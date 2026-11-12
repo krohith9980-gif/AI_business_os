@@ -18,79 +18,92 @@ export default function TodaySnapshotBar({ today }: TodaySnapshotBarProps) {
             Today's Business Pulse (ఈరోజు వ్యాపార సారాంశం)
           </h2>
         </div>
-        <div className="text-xs text-emerald-300 font-medium">
-          Real-time POS & Register Sync
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-emerald-200 font-medium bg-emerald-800/70 border border-emerald-500/40 px-2.5 py-0.5 rounded-full shadow-2xs">
+            Live Today ({today.snapshotDateIST || 'IST'}) • Independent of period filter
+          </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {/* Metric 1: Today's Total Sales */}
         <div className="bg-white/5 hover:bg-white/10 transition-colors p-3 rounded-lg border border-white/10">
           <div className="flex items-center justify-between text-emerald-300 text-xs mb-1">
-            <span>Today's Sales</span>
+            <span>Total Sales</span>
             <IndianRupee className="w-3.5 h-3.5" />
           </div>
-          <div className="text-lg sm:text-xl font-extrabold text-white">
+          <div className="text-base sm:text-lg font-extrabold text-white">
             ₹{today.todaySales.toLocaleString('en-IN')}
           </div>
           <div className="text-[11px] text-emerald-300/80 mt-0.5">
-            ఈరోజు మొత్తం అమ్మకాలు
+            మొత్తం అమ్మకాలు
           </div>
         </div>
 
-        {/* Metric 2: Today's Bill Count */}
+        {/* Metric 2: Today's Cash Sales */}
+        <div className="bg-white/5 hover:bg-white/10 transition-colors p-3 rounded-lg border border-white/10">
+          <div className="flex items-center justify-between text-emerald-300 text-xs mb-1">
+            <span>Cash Sales</span>
+            <IndianRupee className="w-3.5 h-3.5 text-emerald-400" />
+          </div>
+          <div className="text-base sm:text-lg font-extrabold text-emerald-300">
+            ₹{today.todayCashSales.toLocaleString('en-IN')}
+          </div>
+          <div className="text-[11px] text-emerald-200/80 mt-0.5">
+            నగదు అమ్మకాలు
+          </div>
+        </div>
+
+        {/* Metric 3: Today's Credit Sales */}
+        <div className="bg-white/5 hover:bg-white/10 transition-colors p-3 rounded-lg border border-white/10">
+          <div className="flex items-center justify-between text-amber-300 text-xs mb-1">
+            <span>Credit Sales</span>
+            <IndianRupee className="w-3.5 h-3.5 text-amber-400" />
+          </div>
+          <div className="text-base sm:text-lg font-extrabold text-amber-300">
+            ₹{today.todayCreditSales.toLocaleString('en-IN')}
+          </div>
+          <div className="text-[11px] text-amber-200/80 mt-0.5">
+            బాకీ అమ్మకాలు
+          </div>
+        </div>
+
+        {/* Metric 4: Today's Bill Count */}
         <div className="bg-white/5 hover:bg-white/10 transition-colors p-3 rounded-lg border border-white/10">
           <div className="flex items-center justify-between text-teal-300 text-xs mb-1">
             <span>Bills Count</span>
             <ReceiptText className="w-3.5 h-3.5" />
           </div>
-          <div className="text-lg sm:text-xl font-extrabold text-white">
+          <div className="text-base sm:text-lg font-extrabold text-white">
             {today.todayBillCount}
           </div>
           <div className="text-[11px] text-teal-300/80 mt-0.5">
-            ఈరోజు బిల్లుల సంఖ్య
+            బిల్లులు
           </div>
         </div>
 
-        {/* Metric 3: Cash vs Credit Split */}
-        <div className="bg-white/5 hover:bg-white/10 transition-colors p-3 rounded-lg border border-white/10 col-span-2 sm:col-span-1">
-          <div className="flex items-center justify-between text-blue-300 text-xs mb-1">
-            <span>Cash vs Credit</span>
-            <Split className="w-3.5 h-3.5" />
-          </div>
-          <div className="flex items-baseline gap-1 text-xs sm:text-sm font-bold text-white">
-            <span className="text-emerald-400">₹{today.todayCashSales.toLocaleString('en-IN')}</span>
-            <span className="text-gray-400">/</span>
-            <span className="text-amber-400">₹{today.todayCreditSales.toLocaleString('en-IN')}</span>
-          </div>
-          <div className="text-[11px] text-gray-300 mt-0.5 flex justify-between">
-            <span className="text-emerald-300/90">నగదు</span>
-            <span className="text-amber-300/90">అరువు</span>
-          </div>
-        </div>
-
-        {/* Metric 4: Collections Today */}
+        {/* Metric 5: Collections Today */}
         <div className="bg-white/5 hover:bg-white/10 transition-colors p-3 rounded-lg border border-white/10">
-          <div className="flex items-center justify-between text-emerald-300 text-xs mb-1">
-            <span>Customer Collections</span>
-            <ArrowDownRight className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="flex items-center justify-between text-cyan-300 text-xs mb-1">
+            <span>Collections</span>
+            <ArrowDownRight className="w-3.5 h-3.5 text-cyan-400" />
           </div>
-          <div className="text-lg sm:text-xl font-extrabold text-emerald-300">
+          <div className="text-base sm:text-lg font-extrabold text-cyan-300">
             ₹{today.todayCollections.toLocaleString('en-IN')}
           </div>
-          <div className="text-[11px] text-emerald-200/80 mt-0.5">
-            రైతుల నుంచి వసూళ్లు
+          <div className="text-[11px] text-cyan-200/80 mt-0.5">
+            రైతుల వసూళ్లు
           </div>
         </div>
 
-        {/* Metric 5: Supplier Disbursements Today (Owner Only) */}
+        {/* Metric 6: Supplier Disbursements Today (Owner Only) */}
         {today.todaySupplierDisbursements !== null ? (
           <div className="bg-white/5 hover:bg-white/10 transition-colors p-3 rounded-lg border border-white/10">
             <div className="flex items-center justify-between text-rose-300 text-xs mb-1">
               <span>Supplier Paid</span>
               <ArrowUpRight className="w-3.5 h-3.5 text-rose-400" />
             </div>
-            <div className="text-lg sm:text-xl font-extrabold text-rose-300">
+            <div className="text-base sm:text-lg font-extrabold text-rose-300">
               ₹{today.todaySupplierDisbursements.toLocaleString('en-IN')}
             </div>
             <div className="text-[11px] text-rose-200/80 mt-0.5">
@@ -111,6 +124,11 @@ export default function TodaySnapshotBar({ today }: TodaySnapshotBarProps) {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="mt-3 pt-2.5 border-t border-white/10 flex flex-wrap items-center justify-between text-[11px] text-emerald-200/80 gap-1">
+        <span>⚡ <strong>Live Snapshot:</strong> Reflects real-time transactions for today ({today.snapshotDateIST || 'IST'}).</span>
+        <span className="text-emerald-300/80">Filter selections below adjust Financial Health, Comparisons, and Trends.</span>
       </div>
     </div>
   )
