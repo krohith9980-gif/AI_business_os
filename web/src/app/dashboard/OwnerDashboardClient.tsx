@@ -99,7 +99,7 @@ export default function OwnerDashboardClient({
         periodDisplayLabel={initialData.performance.periodDisplayLabel}
       />
 
-      {/* 2. Today's Business Summary */}
+      {/* 2. Business Pulse */}
       <TodaySnapshotBar today={initialData.today} />
 
       {/* 3. Deterministic AI Assistant Insights */}

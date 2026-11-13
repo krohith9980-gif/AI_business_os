@@ -116,7 +116,7 @@ export default function SalesPerformanceSection({
               </span>
             </div>
             <span className="text-[11px] text-gray-500">
-              *Invoice checkout allocations
+              *Allocated on tax-exclusive revenue basis (Paid Sales + Credit Sales = Total Sales)
             </span>
           </div>
 
@@ -133,16 +133,16 @@ export default function SalesPerformanceSection({
               <div className="text-[10px] text-gray-600 font-medium mt-0.5">మొత్తం అమ్మకాలు</div>
             </div>
 
-            {/* 2. Cash Sales */}
+            {/* 2. Paid Sales */}
             <div className="bg-white p-3 rounded-lg border border-emerald-200 shadow-2xs">
               <div className="text-[11px] font-semibold text-emerald-700 flex items-center justify-between">
-                <span>Cash Sales</span>
+                <span>Paid Sales</span>
                 <Wallet className="w-3.5 h-3.5 text-emerald-600" />
               </div>
               <div className="text-base sm:text-lg font-black text-emerald-800 mt-1">
-                ₹{performance.periodCashSales.toLocaleString('en-IN')}
+                ₹{(performance.periodPaidSales ?? performance.periodCashSales).toLocaleString('en-IN')}
               </div>
-              <div className="text-[10px] text-emerald-600 font-medium mt-0.5">నగదు అమ్మకాలు</div>
+              <div className="text-[10px] text-emerald-600 font-medium mt-0.5">నగదు / ఆన్‌లైన్ అమ్మకాలు</div>
             </div>
 
             {/* 3. Credit Sales */}

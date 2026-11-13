@@ -14,13 +14,22 @@ export interface BusinessProfile {
 }
 
 export interface TodaySnapshot {
-  todaySales: number;
-  todayBillCount: number;
-  todayCashSales: number;
-  todayCreditSales: number;
-  todayCollections: number;
-  todaySupplierDisbursements: number | null;
-  snapshotDateIST: string;
+  todaySales: number; // Selected period net product revenue (tax-exclusive basis)
+  todayGrossProfit: number | null; // Selected period gross profit (null for non-owners)
+  todayGrossProfitMargin: number | null; // Selected period gross profit margin %
+  todayBillCount: number; // Selected period bill count
+  todayCashSales: number; // Backwards compatible alias for paid sales
+  todayPaidSales: number; // Settled revenue portion (tax-exclusive basis)
+  todayCreditSales: number; // Outstanding revenue portion (tax-exclusive basis)
+  todayPaidCash?: number; // Physical cash portion (tax-exclusive)
+  todayPaidUpi?: number; // UPI portion (tax-exclusive)
+  todayPaidCard?: number; // Card portion (tax-exclusive)
+  todayTotalTaxCollected?: number; // Statutory GST collected in period
+  todayTotalBilledWithTax?: number; // Gross amount billed including tax
+  todayCollections: number; // Selected period customer collections
+  todaySupplierDisbursements: number | null; // Selected period supplier payments (owner only)
+  uncostedItemsCount?: number; // Count of items sold with zero/missing purchase cost
+  snapshotDateIST: string; // Selected period label (e.g. "Today (13/11/2026)", "Custom (01/09/2026 - 05/09/2026)")
 }
 
 export interface FinancialMetrics {
@@ -64,6 +73,7 @@ export interface SalesPerformance {
   dailyTrend: DailyTrendPoint[];
   bestSellers: BestSellingProduct[];
   periodCashSales: number;
+  periodPaidSales?: number;
   periodCreditSales: number;
   periodTotalSales: number;
   periodBillCount: number;

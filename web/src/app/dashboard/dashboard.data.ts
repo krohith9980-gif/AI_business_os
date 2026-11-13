@@ -43,38 +43,345 @@ export function computeInvoiceDirectUnpaid(
   return Math.max(0, grandTotal - directPaid - directReturns);
 }
 
+export function allocateCentsDeterministically(
+  targetAmount: number,
+  methods: Array<{ name: string; rawAmount: number }>
+): Record<string, number> {
+  const targetCents = Math.round(targetAmount * 100);
+  const result: Record<string, number> = {};
+
+  for (const m of methods) {
+    result[m.name] = 0;
+  }
+
+  if (targetCents <= 0 || methods.length === 0) {
+    return result;
+  }
+
+  const totalRawCents = methods.reduce((sum, m) => sum + Math.max(0, Math.round(m.rawAmount * 100)), 0);
+  if (totalRawCents <= 0) {
+    const baseShare = Math.floor(targetCents / methods.length);
+    let rem = targetCents - (baseShare * methods.length);
+    for (const m of methods) {
+      let add = baseShare;
+      if (rem > 0) {
+        add += 1;
+        rem--;
+      }
+      result[m.name] = add / 100;
+    }
+    return result;
+  }
+
+  interface MethodCalc {
+    name: string;
+    floorCents: number;
+    fraction: number;
+    originalIndex: number;
+  }
+
+  const calcs: MethodCalc[] = methods.map((m, idx) => {
+    const rawCents = Math.max(0, Math.round(m.rawAmount * 100));
+    const idealCents = (rawCents / totalRawCents) * targetCents;
+    const floorCents = Math.floor(idealCents);
+    const fraction = idealCents - floorCents;
+    return {
+      name: m.name,
+      floorCents,
+      fraction,
+      originalIndex: idx
+    };
+  });
+
+  const sumFloor = calcs.reduce((sum, c) => sum + c.floorCents, 0);
+  const remainderCents = targetCents - sumFloor;
+
+  const sorted = [...calcs].sort((a, b) => {
+    if (Math.abs(b.fraction - a.fraction) > 1e-9) {
+      return b.fraction - a.fraction;
+    }
+    return a.originalIndex - b.originalIndex;
+  });
+
+  const bonusCents = new Map<string, number>();
+  for (let i = 0; i < remainderCents; i++) {
+    const item = sorted[i % sorted.length];
+    bonusCents.set(item.name, (bonusCents.get(item.name) || 0) + 1);
+  }
+
+  for (const c of calcs) {
+    const totalAllocatedCents = c.floorCents + (bonusCents.get(c.name) || 0);
+    result[c.name] = totalAllocatedCents / 100;
+  }
+
+  return result;
+}
+
+export interface PeriodSalesBreakdown {
+  totalSales: number; // Net product revenue (tax-exclusive) less returns
+  paidSales: number; // Settled revenue portion (tax-exclusive basis)
+  cashSales: number; // Backwards-compatible alias for paidSales
+  creditSales: number; // Outstanding revenue portion (tax-exclusive basis)
+  billCount: number;
+  paidCash: number; // Cash payment portion (tax-exclusive basis)
+  paidUpi: number; // UPI payment portion (tax-exclusive basis)
+  paidCard: number; // Card payment portion (tax-exclusive basis)
+  paidOther: number;
+  totalBilledWithTax: number; // Gross amount billed including tax
+  totalTaxCollected: number; // Total statutory tax
+  totalPaidWithTax: number; // Gross checkout collections including tax
+  totalCreditWithTax: number; // Gross invoice receivables including tax
+}
+
 export function computePeriodSalesBreakdown(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sales: Array<{ grand_total?: number | string | null; payments?: Array<any> | null }>
-): {
-  totalSales: number;
-  cashSales: number;
-  creditSales: number;
-  billCount: number;
-} {
-  let totalSales = 0;
-  let cashSales = 0;
-  let creditSales = 0;
-  const billCount = sales ? sales.length : 0;
+  sales: Array<{
+    id?: string;
+    grand_total?: number | string | null;
+    subtotal?: number | string | null;
+    discount_total?: number | string | null;
+    tax_total?: number | string | null;
+    payments?: Array<any> | null;
+    returns?: Array<{
+      id?: string;
+      total_refund_amount?: number | string | null;
+      status?: string;
+      tax_inclusive?: boolean;
+      is_tax_inclusive?: boolean;
+      is_net?: boolean;
+    }> | null;
+  }>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  periodReturns?: Array<any> | Map<string, number> | number
+): PeriodSalesBreakdown {
+  const seenReturnIds = new Set<string>();
+  const returnsGrossBySaleId = new Map<string, number>();
+  const returnsNetBySaleId = new Map<string, number>();
+  let unassignedReturns = 0;
 
+  if (Array.isArray(periodReturns)) {
+    for (const r of periodReturns) {
+      if (!r) continue;
+      if (r.id) {
+        if (seenReturnIds.has(r.id)) {
+          continue; // Deduplicate: prevent duplicate return records from reducing revenue twice
+        }
+        seenReturnIds.add(r.id);
+      }
+      const refundAmt = Number(r.total_refund_amount || 0);
+      if (refundAmt <= 0) continue;
+
+      const isAlreadyNet = r.tax_inclusive === false || r.is_tax_inclusive === false || r.is_net === true;
+
+      if (r.sale_id) {
+        if (isAlreadyNet) {
+          returnsNetBySaleId.set(r.sale_id, (returnsNetBySaleId.get(r.sale_id) || 0) + refundAmt);
+        } else {
+          returnsGrossBySaleId.set(r.sale_id, (returnsGrossBySaleId.get(r.sale_id) || 0) + refundAmt);
+        }
+      } else {
+        unassignedReturns += refundAmt;
+      }
+    }
+  } else if (periodReturns instanceof Map) {
+    for (const [saleId, amt] of periodReturns.entries()) {
+      returnsGrossBySaleId.set(saleId, Number(amt || 0));
+    }
+  } else if (typeof periodReturns === 'number' && periodReturns > 0) {
+    unassignedReturns = periodReturns;
+  }
+
+  // Also check if sale objects themselves have returns attached
   for (const s of sales || []) {
-    const saleTotal = Number(s.grand_total || 0);
-    totalSales += saleTotal;
-
-    const settledPaid = computeSettledPaymentsTotal(s.payments);
-    if (settledPaid >= saleTotal) {
-      cashSales += saleTotal;
-    } else {
-      cashSales += settledPaid;
-      creditSales += (saleTotal - settledPaid);
+    if (s && s.id && Array.isArray(s.returns)) {
+      for (const r of s.returns) {
+        if (!r) continue;
+        if (r.id) {
+          if (seenReturnIds.has(r.id)) continue;
+          seenReturnIds.add(r.id);
+        }
+        const refundAmt = Number(r.total_refund_amount || 0);
+        if (refundAmt > 0) {
+          const isAlreadyNet = r.tax_inclusive === false || r.is_tax_inclusive === false || r.is_net === true;
+          if (isAlreadyNet) {
+            returnsNetBySaleId.set(s.id, (returnsNetBySaleId.get(s.id) || 0) + refundAmt);
+          } else {
+            returnsGrossBySaleId.set(s.id, (returnsGrossBySaleId.get(s.id) || 0) + refundAmt);
+          }
+        }
+      }
     }
   }
 
+  let grossProductRevenue = 0;
+  let totalBilledWithTax = 0;
+  let totalTaxCollected = 0;
+  let totalPaidWithTax = 0;
+  let totalCreditWithTax = 0;
+
+  let totalInvoicePaidRevenue = 0;
+  let totalInvoiceCreditRevenue = 0;
+  let totalInvoiceNetRevenue = 0;
+
+  const rawMethodWeights = {
+    CASH: 0,
+    UPI: 0,
+    CARD: 0,
+    OTHER: 0
+  };
+
+  const billCount = sales ? sales.length : 0;
+
+  for (const s of sales || []) {
+    const grandTotal = Number(s.grand_total || 0);
+    const subtotal = Number(s.subtotal || 0);
+    const discount = Number(s.discount_total || 0);
+    const tax = Number(s.tax_total || 0);
+
+    // Tax-exclusive net revenue for this invoice before returns:
+    // If subtotal is provided, use subtotal - discount; otherwise fallback to max(0, grandTotal - tax)
+    const invoiceGrossRevenue = (s.subtotal !== undefined && s.subtotal !== null)
+      ? Math.max(0, subtotal - discount)
+      : Math.max(0, grandTotal - tax);
+
+    grossProductRevenue += invoiceGrossRevenue;
+    totalBilledWithTax += grandTotal;
+    totalTaxCollected += tax;
+
+    // Settled checkout payments for this invoice
+    const settledPaid = computeSettledPaymentsTotal(s.payments);
+
+    // Invoice-specific return amounts
+    const returnTaxInclusive = s.id ? (returnsGrossBySaleId.get(s.id) || 0) : 0;
+    const returnTaxExclusive = s.id ? (returnsNetBySaleId.get(s.id) || 0) : 0;
+    const invoiceReturnGross = returnTaxInclusive + returnTaxExclusive;
+
+    // Convert tax-inclusive return portion to tax-exclusive net revenue basis only when necessary
+    let convertedReturnNet = 0;
+    if (returnTaxInclusive > 0) {
+      if (grandTotal > 0 && grandTotal > invoiceGrossRevenue) {
+        const revRatio = invoiceGrossRevenue / grandTotal;
+        convertedReturnNet = Math.round(returnTaxInclusive * revRatio * 100) / 100;
+      } else {
+        convertedReturnNet = returnTaxInclusive;
+      }
+    }
+
+    // Net tax-exclusive return amount that reduces this invoice's net product revenue:
+    // returnTaxExclusive is NEVER converted (prevents double GST conversion)
+    const invoiceReturnNet = Math.min(
+      invoiceGrossRevenue,
+      Math.round((convertedReturnNet + returnTaxExclusive) * 100) / 100
+    );
+
+    // Net tax-exclusive product revenue for this invoice after returns
+    const invoiceNetRevenue = Math.max(0, Math.round((invoiceGrossRevenue - invoiceReturnNet) * 100) / 100);
+    totalInvoiceNetRevenue += invoiceNetRevenue;
+
+    // Statutory collections & receivables (with tax)
+    const invoicePaidWithTax = Math.min(grandTotal, settledPaid);
+    const invoiceCreditWithTax = Math.max(0, grandTotal - settledPaid - invoiceReturnGross);
+    totalPaidWithTax += invoicePaidWithTax;
+    totalCreditWithTax += invoiceCreditWithTax;
+
+    // Allocation of invoiceNetRevenue between Paid and Credit portions:
+    let invoicePaidRevenue = 0;
+    let invoiceCreditRevenue = invoiceNetRevenue;
+
+    if (settledPaid <= 0) {
+      // UNPAID INVOICE:
+      // Return reduces receivables only. Paid sales is 0. Unrelated invoices are never affected!
+      invoicePaidRevenue = 0;
+      invoiceCreditRevenue = invoiceNetRevenue;
+    } else if (settledPaid >= grandTotal && grandTotal > 0) {
+      // FULLY PAID INVOICE:
+      // Settled amount covered entire invoice; return was refunded to customer.
+      invoicePaidRevenue = invoiceNetRevenue;
+      invoiceCreditRevenue = 0;
+    } else if (grandTotal > 0) {
+      // PARTIALLY PAID INVOICE:
+      // Preserve the original invoice settlement ratio when allocating returned revenue
+      const settledRatio = Math.min(1, Math.max(0, settledPaid / grandTotal));
+      invoicePaidRevenue = Math.round(invoiceNetRevenue * settledRatio * 100) / 100;
+      invoiceCreditRevenue = Math.round((invoiceNetRevenue - invoicePaidRevenue) * 100) / 100;
+    } else if (invoiceNetRevenue > 0 && settledPaid > 0) {
+      invoicePaidRevenue = invoiceNetRevenue;
+      invoiceCreditRevenue = 0;
+    }
+
+    totalInvoicePaidRevenue += invoicePaidRevenue;
+    totalInvoiceCreditRevenue += invoiceCreditRevenue;
+
+    // Track payment methods breakdown for this invoice
+    const invoiceSettledPayments = s.payments ? s.payments.reduce((sum, p) => {
+      const isSettled = p.status === 'PAID' || p.status === 'COMPLETED';
+      return isSettled ? sum + Number(p.amount || 0) : sum;
+    }, 0) : 0;
+
+    if (invoiceSettledPayments > 0 && invoicePaidRevenue > 0) {
+      for (const p of s.payments || []) {
+        const isSettled = p.status === 'PAID' || p.status === 'COMPLETED';
+        if (!isSettled) continue;
+        const amt = Number(p.amount || 0);
+        const method = (p.method || '').toUpperCase();
+        const methodRatio = amt / invoiceSettledPayments;
+        const methodRevenue = invoicePaidRevenue * methodRatio;
+
+        if (method === 'CASH') {
+          rawMethodWeights.CASH += methodRevenue;
+        } else if (method === 'UPI') {
+          rawMethodWeights.UPI += methodRevenue;
+        } else if (method === 'CARD') {
+          rawMethodWeights.CARD += methodRevenue;
+        } else {
+          rawMethodWeights.OTHER += methodRevenue;
+        }
+      }
+    }
+  }
+
+  // Handle any unassigned returns not tied to a specific invoice
+  let finalTotalSales = totalInvoiceNetRevenue;
+  let finalPaidSales = totalInvoicePaidRevenue;
+  let finalCreditSales = totalInvoiceCreditRevenue;
+
+  if (unassignedReturns > 0) {
+    finalTotalSales = Math.max(0, Math.round((totalInvoiceNetRevenue - unassignedReturns) * 100) / 100);
+    if (totalInvoiceNetRevenue > 0) {
+      const unassignedFactor = Math.max(0, finalTotalSales / totalInvoiceNetRevenue);
+      finalPaidSales = Math.round(totalInvoicePaidRevenue * unassignedFactor * 100) / 100;
+      finalCreditSales = Math.round((finalTotalSales - finalPaidSales) * 100) / 100;
+    } else {
+      finalPaidSales = 0;
+      finalCreditSales = 0;
+    }
+  } else {
+    // Exact reconciliation check to prevent any 1-paisa rounding divergence
+    finalCreditSales = Math.round((finalTotalSales - finalPaidSales) * 100) / 100;
+  }
+
+  // Deterministic residual-cent allocation for payment methods
+  const allocated = allocateCentsDeterministically(finalPaidSales, [
+    { name: 'CASH', rawAmount: rawMethodWeights.CASH },
+    { name: 'UPI', rawAmount: rawMethodWeights.UPI },
+    { name: 'CARD', rawAmount: rawMethodWeights.CARD },
+    { name: 'OTHER', rawAmount: rawMethodWeights.OTHER }
+  ]);
+
   return {
-    totalSales,
-    cashSales,
-    creditSales,
-    billCount
+    totalSales: finalTotalSales,
+    paidSales: finalPaidSales,
+    cashSales: finalPaidSales, // backwards-compatible alias
+    creditSales: finalCreditSales,
+    billCount,
+    paidCash: allocated.CASH,
+    paidUpi: allocated.UPI,
+    paidCard: allocated.CARD,
+    paidOther: allocated.OTHER,
+    totalBilledWithTax,
+    totalTaxCollected,
+    totalPaidWithTax,
+    totalCreditWithTax
   };
 }
 
@@ -356,40 +663,7 @@ export async function fetchDashboardData(
     // 3. Date Bounds
     const { start, end, prevStart, prevEnd, comparisonLabel, periodDisplayLabel } = getDateRangeBounds(filter, customStart, customEnd);
 
-    // Today's Date bounds in IST (midnight to midnight)
-    const { year: nowYear, month: nowMonth, day: nowDay } = getNowInIST();
-    const todayStart = createISTDayStart(nowYear, nowMonth, nowDay);
-    const todayEnd = createISTDayEnd(nowYear, nowMonth, nowDay);
-    const snapshotDateIST = `${nowDay.toString().padStart(2, '0')}/${(nowMonth + 1).toString().padStart(2, '0')}/${nowYear}`;
-
-    // 4. Query Today's Completed Sales independently for Today's Business Pulse
-    let todaySalesQuery = supabase
-      .from('sales')
-      .select(`
-        id, grand_total, created_at,
-        payments (
-          id, amount, method, status
-        )
-      `)
-      .eq('organization_id', orgId)
-      .eq('status', 'COMPLETED')
-      .gte('created_at', todayStart.toISOString())
-      .lte('created_at', todayEnd.toISOString());
-
-    if (selectedStoreId) {
-      todaySalesQuery = todaySalesQuery.eq('store_id', selectedStoreId);
-    }
-
-    const { data: todaySalesData, error: todaySalesErr } = await todaySalesQuery;
-    if (todaySalesErr) console.error('Error fetching today sales:', todaySalesErr);
-
-    const todayBreakdown = computePeriodSalesBreakdown(todaySalesData || []);
-    const todaySales = todayBreakdown.totalSales;
-    const todayBillCount = todayBreakdown.billCount;
-    const todayCashSales = todayBreakdown.cashSales;
-    const todayCreditSales = todayBreakdown.creditSales;
-
-    // 5. Query Current Period Completed Sales & Sale Items
+    // 4. Query Current Period Completed Sales & Sale Items
     let currentSalesQuery = supabase
       .from('sales')
       .select(`
@@ -460,6 +734,7 @@ export async function fetchDashboardData(
     let grossProductRevenue = 0;
     let totalTaxCollected = 0;
     let grossCogs = 0;
+    let periodUncostedItemsCount = 0;
 
     const productSalesMap = new Map<string, { name: string; sku: string; quantity: number; revenue: number }>();
     const dailyMap = new Map<string, { sales: number; count: number }>();
@@ -488,6 +763,10 @@ export async function fetchDashboardData(
         const sellingPrice = Number(item.unit_selling_price || 0);
         const discount = Number(item.discount_amount || 0);
         const lineNet = (sellingPrice * qty) - discount;
+
+        if (purchaseCost <= 0) {
+          periodUncostedItemsCount++;
+        }
 
         grossCogs += (purchaseCost * qty);
 
@@ -522,7 +801,11 @@ export async function fetchDashboardData(
       });
     });
 
-    const netProductRevenue = Math.max(0, grossProductRevenue - periodRefunds);
+    // Calculate Cash vs Credit Sales breakdown for the selected reporting period on tax-exclusive basis
+    // Passing returnsData enables invoice-specific return allocation by sale_id
+    const periodBreakdown = computePeriodSalesBreakdown(currentSales, returnsData || []);
+
+    const netProductRevenue = periodBreakdown.totalSales;
     const netCogs = Math.max(0, grossCogs - resellableReturnCogsRecovery);
     const grossProfit = netProductRevenue - netCogs;
     const grossProfitMargin = netProductRevenue > 0 ? (grossProfit / netProductRevenue) * 100 : 0;
@@ -555,9 +838,6 @@ export async function fetchDashboardData(
       ? ((grossProfit - prevGrossProfit) / prevGrossProfit) * 100
       : (grossProfit > 0 ? 100 : null);
 
-    // Calculate Cash vs Credit Sales breakdown for the selected reporting period
-    const periodBreakdown = computePeriodSalesBreakdown(currentSales);
-
     // Build Daily Trend (7 days ending at the period's end date in IST)
     const dailyTrend: DailyTrendPoint[] = [];
     const endIST = new Date(end.getTime() + IST_OFFSET_MINUTES * 60 * 1000);
@@ -583,35 +863,58 @@ export async function fetchDashboardData(
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
 
-    // 7. Query Customer Collections Today and Supplier Disbursements Today
-    const { data: todayCustPayments } = await supabase
+    // 7. Query Customer Collections and Supplier Disbursements for the Selected Reporting Period
+    let periodCustPaymentsQuery = supabase
       .from('customer_ledger')
       .select('amount')
       .eq('organization_id', orgId)
       .eq('transaction_type', 'PAYMENT')
-      .gte('created_at', todayStart.toISOString())
-      .lte('created_at', todayEnd.toISOString());
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString());
 
-    const todayCollections = (todayCustPayments || []).reduce((sum, p) => sum + Math.abs(Number(p.amount || 0)), 0);
+    if (selectedStoreId) {
+      periodCustPaymentsQuery = periodCustPaymentsQuery.eq('store_id', selectedStoreId);
+    }
 
-    const { data: todaySuppPayments } = await supabase
+    const { data: periodCustPayments, error: custPaymentsErr } = await periodCustPaymentsQuery;
+    if (custPaymentsErr) console.error('Error fetching period customer collections:', custPaymentsErr);
+
+    const periodCollections = (periodCustPayments || []).reduce((sum, p) => sum + Math.abs(Number(p.amount || 0)), 0);
+
+    let periodSuppPaymentsQuery = supabase
       .from('supplier_ledger')
       .select('amount')
       .eq('organization_id', orgId)
       .eq('transaction_type', 'PAYMENT')
-      .gte('created_at', todayStart.toISOString())
-      .lte('created_at', todayEnd.toISOString());
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString());
 
-    const rawTodaySupplierDisbursements = (todaySuppPayments || []).reduce((sum, p) => sum + Math.abs(Number(p.amount || 0)), 0);
+    if (selectedStoreId) {
+      periodSuppPaymentsQuery = periodSuppPaymentsQuery.eq('store_id', selectedStoreId);
+    }
+
+    const { data: periodSuppPayments, error: suppPaymentsErr } = await periodSuppPaymentsQuery;
+    if (suppPaymentsErr) console.error('Error fetching period supplier disbursements:', suppPaymentsErr);
+
+    const rawPeriodSupplierDisbursements = (periodSuppPayments || []).reduce((sum, p) => sum + Math.abs(Number(p.amount || 0)), 0);
 
     const todaySnapshot: TodaySnapshot = {
-      todaySales,
-      todayBillCount,
-      todayCashSales,
-      todayCreditSales,
-      todayCollections,
-      todaySupplierDisbursements: isOwner ? rawTodaySupplierDisbursements : null,
-      snapshotDateIST
+      todaySales: periodBreakdown.totalSales,
+      todayGrossProfit: isOwner ? grossProfit : null,
+      todayGrossProfitMargin: isOwner ? grossProfitMargin : null,
+      todayBillCount: periodBreakdown.billCount,
+      todayCashSales: periodBreakdown.paidSales,
+      todayPaidSales: periodBreakdown.paidSales,
+      todayCreditSales: periodBreakdown.creditSales,
+      todayPaidCash: periodBreakdown.paidCash,
+      todayPaidUpi: periodBreakdown.paidUpi,
+      todayPaidCard: periodBreakdown.paidCard,
+      todayTotalTaxCollected: totalTaxCollected,
+      todayTotalBilledWithTax: periodBreakdown.totalBilledWithTax,
+      todayCollections: periodCollections,
+      todaySupplierDisbursements: isOwner ? rawPeriodSupplierDisbursements : null,
+      uncostedItemsCount: periodUncostedItemsCount,
+      snapshotDateIST: periodDisplayLabel
     };
 
     // 7. Two-Tier FIFO Customer Overdue Allocation
@@ -1145,7 +1448,8 @@ export async function fetchDashboardData(
       periodDisplayLabel,
       dailyTrend,
       bestSellers,
-      periodCashSales: periodBreakdown.cashSales,
+      periodCashSales: periodBreakdown.paidSales,
+      periodPaidSales: periodBreakdown.paidSales,
       periodCreditSales: periodBreakdown.creditSales,
       periodTotalSales: periodBreakdown.totalSales,
       periodBillCount: periodBreakdown.billCount
